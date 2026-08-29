@@ -1,0 +1,147 @@
+import type { AlsProject } from '../types/alsProject';
+
+// Dummy fixture data used as an initial placeholder before the user picks a
+// root folder to scan via the `list_projects` Tauri command.
+export const dummyAlsProjects: AlsProject[] = [
+  {
+    path: '/Users/demo/Music/Ableton/Sunset Drive/Sunset Drive.als',
+    name: 'Sunset Drive',
+    scales: [
+      {
+        root_name: 'C',
+        scale_name: 'Major',
+        common: true,
+        score: 48,
+        clip_count: 12,
+        coverage_percent: 85,
+        alternates: [
+          { root_name: 'A', scale_name: 'Minor' },
+          { root_name: 'D', scale_name: 'Dorian' },
+          { root_name: 'G', scale_name: 'Mixolydian' },
+        ],
+      },
+      {
+        root_name: 'C',
+        scale_name: 'Minor Pentatonic',
+        common: true,
+        score: 30,
+        clip_count: 8,
+        coverage_percent: 40,
+        alternates: [],
+      },
+      {
+        root_name: 'G',
+        scale_name: 'Mixolydian',
+        common: true,
+        score: 18,
+        clip_count: 5,
+        coverage_percent: 25,
+        alternates: [],
+      },
+      {
+        root_name: 'D',
+        scale_name: 'Phrygian',
+        common: true,
+        score: 10,
+        clip_count: 3,
+        coverage_percent: 15,
+        alternates: [],
+      },
+      {
+        root_name: 'E',
+        scale_name: 'Locrian',
+        common: true,
+        score: 6,
+        clip_count: 2,
+        coverage_percent: 10,
+        alternates: [],
+      },
+      {
+        root_name: 'A',
+        scale_name: 'Lydian',
+        common: true,
+        score: 3,
+        clip_count: 1,
+        coverage_percent: 5,
+        alternates: [],
+      },
+    ],
+  },
+  {
+    path: '/Users/demo/Music/Ableton/Midnight Loop/Midnight Loop.als',
+    name: 'Midnight Loop',
+    scales: [
+      {
+        root_name: 'D',
+        scale_name: 'Dorian',
+        common: true,
+        score: 32,
+        clip_count: 8,
+        coverage_percent: 60,
+        alternates: [],
+      },
+      {
+        root_name: 'F',
+        scale_name: 'Lydian',
+        common: true,
+        score: 14,
+        clip_count: 4,
+        coverage_percent: 30,
+        alternates: [],
+      },
+    ],
+  },
+  {
+    path: '/Users/demo/Music/Ableton/Untitled Set 12/Untitled Set 12.als',
+    name: 'Untitled Set 12',
+    scales: [],
+  },
+  {
+    path: '/Users/demo/Music/Ableton/Desert Bloom/Desert Bloom.als',
+    name: 'Desert Bloom',
+    scales: [
+      {
+        root_name: 'E',
+        scale_name: 'Phrygian Dominant',
+        common: false,
+        score: 21,
+        clip_count: 5,
+        coverage_percent: 45,
+        alternates: [],
+      },
+      {
+        root_name: 'A',
+        scale_name: 'Harmonic Minor',
+        common: false,
+        score: 19,
+        clip_count: 5,
+        coverage_percent: 45,
+        alternates: [],
+      },
+      {
+        root_name: 'E',
+        scale_name: 'Hungarian Minor',
+        common: false,
+        score: 7,
+        clip_count: 2,
+        coverage_percent: 18,
+        alternates: [],
+      },
+    ],
+  },
+  {
+    path: '/Users/demo/Music/Ableton/Glass Corridor/Glass Corridor.als',
+    name: 'Glass Corridor',
+    scales: [
+      {
+        root_name: 'B',
+        scale_name: 'Minor Pentatonic',
+        common: true,
+        score: 64,
+        clip_count: 20,
+        coverage_percent: 90,
+        alternates: [],
+      },
+    ],
+  },
+];
