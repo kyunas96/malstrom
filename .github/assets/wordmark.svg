@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 58 502 138" width="100%" height="100%">
+  <!-- Deep Dark Studio Canvas Background -->
+  <rect x="7" y="58" width="502" height="138" rx="16" fill="#11161b" />
+
+  <!-- MAIN WORDMARK GROUP -->
+  <g transform="translate(45, 8)" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-weight="700" letter-spacing="4" style="font-kerning: none;">
+
+    <!-- THE FIRST 'm' (drawn, arches over ".als") -->
+    <!-- Arch 1 (plain 'n': two stems joined by a single arch) -->
+    <path d="M 20,155 L 20,106 C 20,89 32,78 53,78 C 74,78 86,89 86,106 L 86,155 L 70,155 L 70,110 C 70,99 62,92 53,92 C 44,92 36,99 36,110 L 36,155 Z" fill="#ffffff" />
+    <!-- Arch 2 (grows out of the 'n' right stem, spans wide enough to clear the ".als" text below it) -->
+    <path d="M 70,129 C 70,45 198,45 198,129 L 198,155 L 182,155 L 182,129 C 182,59 86,59 86,129 Z" fill="#ffffff" />
+
+    <!-- .als (real text, nested under arch 2) -->
+    <text x="90" y="155" font-size="45" fill="#00ffc4">.als</text>
+
+    <!-- trom (real text, flat baseline) -->
+    <text x="208" y="155" font-size="82" fill="#ffffff">trom</text>
+
+  </g>
+</svg>
