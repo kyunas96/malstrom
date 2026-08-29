@@ -1,0 +1,654 @@
+/* ==========================================================================
+   Base / reset
+   ========================================================================== */
+
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+
+  /* First guess for pinned-row tint — no prior token existed; verify it reads
+     clearly against the card's white background with multiple pinned rows. */
+  --pinned-row-tint: #fdfcf8;
+  --panel-tint: #fafaf9;
+  --hairline: #f0efed;
+  --card-bg: #fff;
+
+  --accent-browse: #396cd8;
+  --accent-pull: #d9822b;
+  --text-muted: #5f5a56;
+  --text-faint: #6f6a65;
+  --border-subtle: #e7e5e4;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+#root {
+  padding: 0 24px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.container {
+  margin: 0;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.row {
+  display: flex;
+  justify-content: center;
+}
+
+.error-text {
+  color: red;
+}
+
+.folder-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12vh;
+}
+
+.folder-gate progress {
+  width: 320px;
+}
+
+.folder-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.folder-bar-path {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.98em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-bar-change {
+  flex-shrink: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-faint);
+  font-size: 0.92em;
+  font-weight: 400;
+  padding: 0.3em 0.6em;
+}
+
+.folder-bar-change:hover {
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+}
+
+input,
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #0f0f0f;
+  background-color: #ffffff;
+  transition: border-color 0.25s;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  outline: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent-browse);
+}
+button:active {
+  border-color: var(--accent-browse);
+  background-color: #e8e8e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f6f6f6;
+    background-color: #2f2f2f;
+
+    --text-muted: #c9c4bc;
+    --text-faint: #b3aea6;
+    --border-subtle: #4a4a4a;
+    --pinned-row-tint: #3a372f;
+    --panel-tint: #383838;
+    --hairline: #454545;
+    --card-bg: #262626;
+  }
+
+  input,
+  button {
+    color: #ffffff;
+    background-color: #0f0f0f98;
+  }
+  button:active {
+    background-color: #0f0f0f69;
+  }
+}
+
+/* ==========================================================================
+   Project table / card
+   ========================================================================== */
+
+.results-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding-bottom: 16px;
+}
+
+.als-project-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 0;
+}
+
+.scales-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.scales-card-header {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  padding: 14px 24px;
+  background: var(--panel-tint);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.scales-card-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+}
+
+.scales-card-row:last-child {
+  border-bottom: none;
+}
+
+.scales-card-row.is-pinned {
+  position: relative;
+  background: var(--pinned-row-tint);
+  border-left: 4px solid var(--pinned-row-accent, transparent);
+}
+
+.scales-divider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  background: var(--panel-tint);
+}
+
+.scales-divider-row::before,
+.scales-divider-row::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.open-in-live-button {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--hairline);
+  background: var(--panel-tint);
+  cursor: pointer;
+}
+
+.pinned-icon {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   Scale match entries (per-project scale candidates grid)
+   ========================================================================== */
+
+.scales-by-root {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px 24px;
+}
+
+.scale-root {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.scales-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.scales-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 15px;
+}
+
+.scales-toggle {
+  grid-column: 1 / -1;
+  justify-self: start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-browse);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.scales-toggle:hover {
+  text-decoration: underline;
+}
+
+/* Scale match entry: name/coverage/bar/caption, replacing the old scale-pill. */
+.scale-match-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.scale-match-value {
+  display: block;
+  flex: 1;
+  min-width: 9em;
+  text-align: left;
+  border: none;
+  box-shadow: none;
+  border-radius: 6px;
+  padding: 3px 6px;
+  margin: -3px -6px;
+  background: transparent;
+  font: inherit;
+  transition: background 0.12s ease;
+}
+
+.scale-match-value.is-selectable {
+  cursor: pointer;
+}
+
+.scale-match-value.is-selectable:not(.is-tagged):hover {
+  background: var(--panel-tint);
+}
+
+.scale-match-value.is-tagged,
+.scale-match-value.is-tagged .scale-match-percent,
+.scale-match-value.is-tagged .scale-match-caption {
+  color: #fff;
+}
+
+.scale-match-value.scale-below-threshold {
+  border: 1px dashed #ddd;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scale-match-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.scale-match-percent {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.98em;
+  color: var(--text-muted);
+}
+
+.scale-match-bar-track {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: #ecebe9;
+  margin: 4px 0 3px;
+  overflow: hidden;
+}
+
+.scale-match-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-browse);
+  border-radius: 999px;
+}
+
+.scale-match-bar-fill.is-weak {
+  background: #c7c3bf;
+}
+
+.scale-match-caption {
+  display: block;
+  font-size: 0.92em;
+  color: var(--text-faint);
+}
+
+.scale-pull-status {
+  display: block;
+  font-size: 0.75em;
+  opacity: 0.8;
+  margin-top: 0.1em;
+}
+
+/* Pull sidecar: sits beside the tag button (never on top of it) so hovering
+   to reveal it can never steal the tag button's click target. A hairline
+   marks it as a distinct "secondary actions" zone, not part of the tag
+   button. Opacity dims at rest but stays above the WCAG 1.4.11 3:1 floor for
+   interactive UI (these are real buttons, not decoration). */
+.scale-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-left: 6px;
+  border-left: 1px solid var(--hairline);
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.scale-match-wrap:hover .scale-actions,
+.scale-match-wrap:focus-within .scale-actions {
+  opacity: 1;
+}
+
+/* Both pull actions share one neutral style — the icon shape is what tells
+   them apart, not color, since orange-outline vs orange-filled encoded no
+   actual meaning (neither is more "dangerous" or "primary" than the other). */
+.scale-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.scale-action-btn:hover {
+  border-color: var(--accent-pull);
+  color: var(--accent-pull);
+}
+
+.scale-action-btn:focus-visible {
+  outline: 2px solid var(--accent-pull);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Scales header: title/hint + mode segment + filter bar + scope controls
+   ========================================================================== */
+
+/* Header layout: title/hint always full-width on their own row; the
+   mode/filter controls row below never reflows because of title content. */
+.scales-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  margin-top: 1.5em;
+}
+
+.scales-header-title {
+  text-align: left;
+}
+
+.scales-header-title h2 {
+  margin: 0;
+}
+
+.scale-mode-hint {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
+.scales-header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.scales-header-controls > .row.scale-filters {
+  flex-shrink: 0;
+}
+
+/* ---- Active scale filter chips (tag filter bar) ---- */
+
+/* .row (defined in the base/reset section, same specificity) sets
+   justify-content:center; qualify with the parent so this wins the cascade
+   instead of relying on source order between two same-specificity rules.
+   Always rendered (see ScaleFilterBar's empty state) so this reserves its
+   own space and the Common/Exotic/coverage controls never shift when a tag
+   is added/cleared. flex:1 stretches it to fill the gap between the mode
+   pill and those controls, instead of hugging its own (often much
+   narrower) content. */
+.scales-header-controls .scale-filter-bar {
+  flex: 1 1 200px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 2.1em;
+  background: var(--panel-tint);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.scale-filter-empty {
+  font-size: 0.98em;
+  color: var(--text-faint);
+  padding: 0 0.3em;
+}
+
+.scale-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border-radius: 999px;
+  padding: 0.3em 0.4em 0.3em 0.8em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.scale-filter-chip-inert {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.scale-filter-chip-remove {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  border-radius: 999px;
+  box-shadow: none;
+  color: inherit;
+  width: 1.4em;
+  height: 1.4em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scale-filter-mode {
+  display: flex;
+  gap: 0.25em;
+}
+
+.scale-filter-clear {
+  border: none;
+  box-shadow: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.98em;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0.3em 0.4em;
+  cursor: pointer;
+}
+
+.scale-filter-clear:hover {
+  color: #0f0f0f;
+}
+
+/* ---- Common/Exotic scope + coverage slider ---- */
+
+.filter-toggle {
+  opacity: 0.6;
+}
+
+.filter-toggle.active {
+  opacity: 1;
+  border-color: var(--accent-browse);
+  color: var(--accent-browse);
+}
+
+.scale-filters {
+  gap: 0.5em;
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+
+.scale-filters .filter-toggle,
+.coverage-slider {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.coverage-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+}
+
+/* ==========================================================================
+   Pull confirm dialog
+   ========================================================================== */
+
+.pull-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.pull-confirm-dialog {
+  background: #fff;
+  color: #222;
+  border-radius: 8px;
+  padding: 1.25em 1.5em;
+  max-width: 26em;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.pull-confirm-dialog h3 {
+  margin: 0 0 0.4em;
+}
+
+.pull-confirm-dialog p {
+  margin: 0 0 1em;
+  opacity: 0.8;
+}
+
+.pull-new-file-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 1em;
+  color: #222;
+  background: #fff;
+}
+
+.pull-new-file-warning {
+  margin: -0.6em 0 1em;
+  color: #b3261e;
+  font-size: 0.85em;
+}
+
+.pull-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.pull-confirm-actions .filter-toggle {
+  width: 100%;
+}
