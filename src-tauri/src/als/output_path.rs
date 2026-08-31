@@ -83,6 +83,41 @@ pub fn resolve_output_path(
     }
 }
 
+/// Backs up `src_path` into its project's `Backup/` folder before an
+/// in-place overwrite, matching Ableton Live's own backup convention
+/// (`{stem} [YYYY-MM-DD HHMMSS].{ext}`, byte-for-byte copy). Refuses rather
+/// than guessing when `Backup/` is missing or unwritable, since that means
+/// this isn't a Live-managed project folder.
+pub fn backup_before_overwrite(src_path: &Path) -> Result<PathBuf> {
+    let project_dir = src_path.parent().unwrap_or_else(|| Path::new("."));
+    let backup_dir = project_dir.join("Backup");
+
+    if !backup_dir.is_dir() {
+        return Err(anyhow!(
+            "No Backup/ folder found next to {} — this doesn't look like a Live-managed project folder, refusing to write.",
+            src_path.display()
+        ));
+    }
+
+    // Existence isn't enough (e.g. a synced/read-only folder) -- probe with
+    // a real write so a permission problem surfaces here, not mid-copy.
+    let probe = backup_dir.join(".malstrom-write-check");
+    std::fs::write(&probe, b"").map_err(|e| {
+        anyhow!("Backup/ folder at {} is not writable ({e}) — refusing to write.", backup_dir.display())
+    })?;
+    let _ = std::fs::remove_file(&probe);
+
+    let stem = src_path.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
+    let ext = src_path.extension().and_then(|s| s.to_str()).unwrap_or("als");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H%M%S");
+    let backup_path = backup_dir.join(format!("{stem} [{timestamp}].{ext}"));
+
+    std::fs::copy(src_path, &backup_path)
+        .map_err(|e| anyhow!("Failed to back up {} to {}: {e}", src_path.display(), backup_path.display()))?;
+
+    Ok(backup_path)
+}
+
 /// Gzip-compresses `xml` and writes it to `dest_path`, matching how `.als`
 /// files are stored on disk.
 pub fn write_als(xml: &str, dest_path: &Path) -> Result<()> {
@@ -95,4 +130,40 @@ pub fn write_als(xml: &str, dest_path: &Path) -> Result<()> {
     encoder.write_all(xml.as_bytes())?;
     encoder.finish()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod backup_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn refuses_when_backup_dir_missing() {
+        let dir = std::env::temp_dir().join(format!("malstrom-backup-test-missing-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("Project.als");
+        fs::write(&src, b"fake gzip bytes").unwrap();
+
+        let err = backup_before_overwrite(&src).unwrap_err();
+        assert!(err.to_string().contains("No Backup/"));
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn copies_bytes_with_expected_name_pattern() {
+        let dir = std::env::temp_dir().join(format!("malstrom-backup-test-ok-{}", std::process::id()));
+        let backup_dir = dir.join("Backup");
+        fs::create_dir_all(&backup_dir).unwrap();
+        let src = dir.join("Project.als");
+        fs::write(&src, b"fake gzip bytes").unwrap();
+
+        let backup_path = backup_before_overwrite(&src).unwrap();
+        assert_eq!(fs::read(&backup_path).unwrap(), b"fake gzip bytes");
+        let name = backup_path.file_name().unwrap().to_str().unwrap();
+        assert!(name.starts_with("Project ["), "unexpected name: {name}");
+        assert!(name.ends_with("].als"), "unexpected name: {name}");
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

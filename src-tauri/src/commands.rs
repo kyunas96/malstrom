@@ -115,6 +115,12 @@ pub async fn apply_scale_to_project(
         }
         let new_path = match &dest_path {
             Some(dest_path) => {
+                if overwrite {
+                    // Overwriting the source is high-risk -- back it up first,
+                    // and never touch the original if the backup didn't
+                    // fully succeed.
+                    output_path::backup_before_overwrite(src_path).map_err(|e| e.to_string())?;
+                }
                 output_path::write_als(&new_xml, dest_path).map_err(|e| e.to_string())?;
                 Some(dest_path.to_string_lossy().to_string())
             }
