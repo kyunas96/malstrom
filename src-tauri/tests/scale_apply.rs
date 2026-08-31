@@ -40,6 +40,62 @@ fn notes_with_keys(midi_keys: &[i32]) -> String {
     format!(r#"<Notes><KeyTracks>{key_tracks}</KeyTracks></Notes>"#)
 }
 
+/// Wraps multiple already-built `<MidiClip>...</MidiClip>` blocks into one
+/// document, so a test can exercise several clips (insert + rewrite +
+/// leave-alone) getting edited in the same pass.
+fn multi_clip_xml(clips: &[String]) -> String {
+    let clip_slots: String = clips
+        .iter()
+        .enumerate()
+        .map(|(i, clip)| {
+            format!(
+                r#"<ClipSlot Id="{i}"><ClipSlot><Value>{clip}</Value></ClipSlot></ClipSlot>"#
+            )
+        })
+        .collect();
+    format!(
+        r#"<Ableton><LiveSet><Tracks><MidiTrack><DeviceChain><MainSequencer><ClipSlotList>{clip_slots}</ClipSlotList></MainSequencer></DeviceChain></MidiTrack></Tracks></LiveSet></Ableton>"#
+    )
+}
+
+fn midi_clip(id: i32, inner: &str) -> String {
+    format!(r#"<MidiClip Id="{id}" Time="0">{inner}</MidiClip>"#)
+}
+
+// Regression test for the well-formedness guard added to
+// `apply_scale_to_xml`: it re-parses the fully-edited document (after every
+// clip's edit has been spliced in) and rejects the write if that fails,
+// since a wrong byte range from a misdetected Ableton schema must never
+// reach disk as corrupted XML. This exercises several clips getting
+// different edit kinds (insert, rewrite, and none) in one pass -- the
+// scenario where a bad range would actually show up, because a single-clip
+// edit landing wrong is indistinguishable from just not editing.
+#[test]
+fn multi_clip_apply_produces_well_formed_output() {
+    let clips = vec![
+        // No ScaleInformation yet -> inserted.
+        midi_clip(1, &notes_with_keys(&[2, 5, 9])),
+        // Default ScaleInformation -> rewritten.
+        midi_clip(
+            2,
+            &format!(
+                r#"<ScaleInformation><Root Value="0" /><Name Value="0" /></ScaleInformation>{}"#,
+                notes_with_keys(&[2, 5, 9])
+            ),
+        ),
+        // Notes don't fit the target scale -> left untouched.
+        midi_clip(3, &notes_with_keys(&[1, 6, 10])),
+    ];
+    let xml = multi_clip_xml(&clips);
+
+    let (new_xml, outcome) = apply_scale(&xml, 2, 1).unwrap();
+
+    assert_eq!(outcome.clips_created, 1);
+    assert_eq!(outcome.clips_changed, 1);
+    assert_eq!(outcome.clips_incompatible, 1);
+    Document::parse(&new_xml).expect("multi-clip output must still be valid XML");
+}
+
 #[test]
 fn rewrites_default_scale_information_when_compatible() {
     // C major triad pitch classes (0, 4, 7) fit D Minor? No -- use pitches
