@@ -479,3 +479,28 @@ fn derive_output_path_avoids_collisions() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// Mirrors the round trip `apply_scale_to_project` uses to populate
+/// `AppliedScaleResult::updated_project`: mutate the XML in memory via
+/// `apply_scale`, then re-wrap and re-extract candidates from the *mutated*
+/// string, without writing to disk. The returned candidates must reflect
+/// the just-applied scale, not the pre-edit clip content.
+#[test]
+fn candidates_from_mutated_xml_reflect_the_applied_scale() {
+    let xml = clip_xml(&notes_with_keys(&[60, 64, 67])); // C, E, G -- fits C Major
+    let (new_xml, outcome) = apply_scale(&xml, 0, 0).unwrap(); // root C, scale Major
+    assert_eq!(outcome.clips_created, 1);
+
+    let candidates = AlsInspector::from_xml(new_xml)
+        .extract_scale_candidates()
+        .unwrap();
+
+    assert!(
+        candidates
+            .scales
+            .iter()
+            .any(|c| c.root_name == "C" && c.scale_name == "Major"),
+        "expected C Major among candidates, got {:?}",
+        candidates.scales
+    );
+}
