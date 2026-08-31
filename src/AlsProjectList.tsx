@@ -22,6 +22,7 @@ export function AlsProjectList() {
   const [showCommonScales, setShowCommonScales] = useState(true);
   const [showExoticScales, setShowExoticScales] = useState(false);
   const [minCoveragePercent, setMinCoveragePercent] = useState(0);
+  const [nameFilter, setNameFilter] = useState('');
 
   const { activeTags, tagMode, setTagMode, pinnedPaths, handleToggleTag, handleRemoveTag, clearTags } =
     useScaleTags();
@@ -34,6 +35,7 @@ export function AlsProjectList() {
     tagMode,
     minCoveragePercent,
     pinnedPaths,
+    nameFilter,
   });
 
   const {
@@ -152,6 +154,13 @@ export function AlsProjectList() {
           </p>
         </div>
         <div className="scales-header-controls">
+          <input
+            type="text"
+            className="name-filter-input"
+            placeholder="Filter by name…"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
           <ScaleFilterBar
             activeTags={activeTags}
             projects={projects}
