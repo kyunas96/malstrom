@@ -18,7 +18,8 @@ import { deriveDefaultFileName } from './lib/fileName';
 const columnHelper = createColumnHelper<AlsProject>();
 
 export function AlsProjectList() {
-  const { rootFolder, projects, loading, progress, error, handleChooseFolder } = useProjectScan();
+  const { rootFolder, projects, loading, progress, error, handleChooseFolder, updateProjectScales } =
+    useProjectScan();
   const [showCommonScales, setShowCommonScales] = useState(true);
   const [showExoticScales, setShowExoticScales] = useState(false);
   const [minCoveragePercent, setMinCoveragePercent] = useState(0);
@@ -48,7 +49,7 @@ export function AlsProjectList() {
     requestNewFilePull,
     cancelNewFilePull,
     confirmNewFilePull,
-  } = usePullScale();
+  } = usePullScale(updateProjectScales);
 
   const columns = useMemo(
     () => [

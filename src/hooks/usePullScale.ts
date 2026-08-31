@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppliedScaleResult } from '../types/alsProject';
+import type { AppliedScaleResult, ScaleCandidate } from '../types/alsProject';
 import type { ApplyState, PendingNewFilePull, PendingPull } from '../types/scaleMode';
 import { scaleKey } from '../lib/scaleCompatibility';
 
-export function usePullScale() {
+export function usePullScale(onProjectUpdated?: (path: string, scales: ScaleCandidate[]) => void) {
   const [pullStatusByRow, setPullStatusByRow] = useState<Map<string, Map<string, ApplyState>>>(
     new Map(),
   );
@@ -57,6 +57,9 @@ export function usePullScale() {
         state: 'success',
         message: baseMessage + skippedNote + versionWarning,
       });
+      if (overwrite && result.updated_scales) {
+        onProjectUpdated?.(projectPath, result.updated_scales);
+      }
     } catch (err) {
       setPullStatus(projectPath, key, { state: 'error', message: String(err) });
     }

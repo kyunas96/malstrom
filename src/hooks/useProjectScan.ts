@@ -5,6 +5,14 @@ import { listen } from '@tauri-apps/api/event';
 import type { AlsProject } from '../types/alsProject';
 import { dummyAlsProjects } from '../fixtures/alsProjects';
 
+export function patchProjectScales(
+  projects: AlsProject[],
+  path: string,
+  scales: AlsProject['scales'],
+): AlsProject[] {
+  return projects.map((p) => (p.path === path ? { ...p, scales } : p));
+}
+
 export function useProjectScan() {
   const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [projects, setProjects] = useState<AlsProject[]>(dummyAlsProjects);
@@ -45,5 +53,17 @@ export function useProjectScan() {
     }
   }
 
-  return { rootFolder, projects, loading, progress, error, handleChooseFolder };
+  function updateProjectScales(path: string, scales: AlsProject['scales']) {
+    setProjects((prev) => patchProjectScales(prev, path, scales));
+  }
+
+  return {
+    rootFolder,
+    projects,
+    loading,
+    progress,
+    error,
+    handleChooseFolder,
+    updateProjectScales,
+  };
 }
