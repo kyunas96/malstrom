@@ -83,6 +83,41 @@ pub fn resolve_output_path(
     }
 }
 
+/// Backs up `src_path` into its project's `Backup/` folder before an
+/// in-place overwrite, matching Ableton Live's own backup convention
+/// (`{stem} [YYYY-MM-DD HHMMSS].{ext}`, byte-for-byte copy). Refuses rather
+/// than guessing when `Backup/` is missing or unwritable, since that means
+/// this isn't a Live-managed project folder.
+pub fn backup_before_overwrite(src_path: &Path) -> Result<PathBuf> {
+    let project_dir = src_path.parent().unwrap_or_else(|| Path::new("."));
+    let backup_dir = project_dir.join("Backup");
+
+    if !backup_dir.is_dir() {
+        return Err(anyhow!(
+            "No Backup/ folder found next to {} — this doesn't look like a Live-managed project folder, refusing to write.",
+            src_path.display()
+        ));
+    }
+
+    // Existence isn't enough (e.g. a synced/read-only folder) -- probe with
+    // a real write so a permission problem surfaces here, not mid-copy.
+    let probe = backup_dir.join(".malstrom-write-check");
+    std::fs::write(&probe, b"").map_err(|e| {
+        anyhow!("Backup/ folder at {} is not writable ({e}) — refusing to write.", backup_dir.display())
+    })?;
+    let _ = std::fs::remove_file(&probe);
+
+    let stem = src_path.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
+    let ext = src_path.extension().and_then(|s| s.to_str()).unwrap_or("als");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H%M%S");
+    let backup_path = backup_dir.join(format!("{stem} [{timestamp}].{ext}"));
+
+    std::fs::copy(src_path, &backup_path)
+        .map_err(|e| anyhow!("Failed to back up {} to {}: {e}", src_path.display(), backup_path.display()))?;
+
+    Ok(backup_path)
+}
+
 /// Gzip-compresses `xml` and writes it to `dest_path`, matching how `.als`
 /// files are stored on disk.
 pub fn write_als(xml: &str, dest_path: &Path) -> Result<()> {

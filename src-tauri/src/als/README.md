@@ -47,3 +47,18 @@ sparse clips. The `ScaleCandidates` struct returned to callers holds these
 entries sorted by descending score, with the first entry being the scale
 most compatible with the project as a whole. Partial/near-matches (off by
 one or two notes) are explicitly out of scope for now.
+
+### output_path
+
+Decides where an applied scale gets written (`resolve_output_path`) and
+performs the actual write (`write_als`, gzip-compresses XML back to `.als`).
+
+Before any in-place overwrite (`overwrite: true`, used by
+`apply_scale_to_project`), `backup_before_overwrite` copies the current
+`.als` bytes into that project's `Backup/` folder as
+`{stem} [YYYY-MM-DD HHMMSS].als` -- matching Ableton Live's own backup
+naming exactly, so a user recovering manually can open it straight in Live.
+It refuses (rather than creating `Backup/` or picking somewhere else) when
+that folder is missing or not writable, since either means this isn't a
+Live-managed project folder; the caller must not proceed to the real write
+if this fails.
