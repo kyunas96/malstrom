@@ -11,6 +11,7 @@ export function useFilteredProjects({
   tagMode,
   minCoveragePercent,
   pinnedPaths,
+  nameFilter,
 }: {
   projects: AlsProject[];
   showCommonScales: boolean;
@@ -19,6 +20,7 @@ export function useFilteredProjects({
   tagMode: TagMatchMode;
   minCoveragePercent: number;
   pinnedPaths: string[];
+  nameFilter: string;
 }) {
   const scopedProjects = useMemo(() => {
     return projects.map((project) => ({
@@ -35,20 +37,25 @@ export function useFilteredProjects({
     );
   }, [scopedProjects, activeTags, tagMode, minCoveragePercent]);
 
+  const nameFiltered = useMemo(() => {
+    const needle = nameFilter.trim().toLowerCase();
+    return needle ? data.filter((p) => p.name.toLowerCase().includes(needle)) : data;
+  }, [data, nameFilter]);
+
   const { orderedData, dividerIndex } = useMemo(() => {
     if (pinnedPaths.length === 0) {
-      return { orderedData: data, dividerIndex: -1 };
+      return { orderedData: nameFiltered, dividerIndex: -1 };
     }
     const pinnedRows = pinnedPaths
-      .map((path) => data.find((p) => p.path === path))
+      .map((path) => nameFiltered.find((p) => p.path === path))
       .filter((p): p is AlsProject => p !== undefined);
     const pinnedPathSet = new Set(pinnedRows.map((p) => p.path));
-    const otherRows = data.filter((p) => !pinnedPathSet.has(p.path));
+    const otherRows = nameFiltered.filter((p) => !pinnedPathSet.has(p.path));
     if (pinnedRows.length === 0 || otherRows.length === 0) {
       return { orderedData: [...pinnedRows, ...otherRows], dividerIndex: -1 };
     }
     return { orderedData: [...pinnedRows, ...otherRows], dividerIndex: pinnedRows.length };
-  }, [data, pinnedPaths]);
+  }, [nameFiltered, pinnedPaths]);
 
   return { orderedData, dividerIndex };
 }
