@@ -49,7 +49,14 @@ export function usePullScale() {
         result.schema_predates_clip_scale && result.clips_created > 0
           ? ' ⚠ This project predates Ableton’s per-clip Scale feature — open it in Ableton and save once (no changes needed), then Pull again, or the new scale may not show up.'
           : '';
-      setPullStatus(projectPath, key, { state: 'success', message: baseMessage + versionWarning });
+      const skippedNote =
+        result.clips_already_set > 0
+          ? ` (${result.clips_already_set} clip${result.clips_already_set === 1 ? '' : 's'} already had a different valid scale and were left alone)`
+          : '';
+      setPullStatus(projectPath, key, {
+        state: 'success',
+        message: baseMessage + skippedNote + versionWarning,
+      });
     } catch (err) {
       setPullStatus(projectPath, key, { state: 'error', message: String(err) });
     }
