@@ -481,7 +481,7 @@ fn derive_output_path_avoids_collisions() {
 }
 
 /// Mirrors the round trip `apply_scale_to_project` uses to populate
-/// `AppliedScaleResult::updated_scales`: mutate the XML in memory via
+/// `AppliedScaleResult::updated_project`: mutate the XML in memory via
 /// `apply_scale`, then re-wrap and re-extract candidates from the *mutated*
 /// string, without writing to disk. The returned candidates must reflect
 /// the just-applied scale, not the pre-edit clip content.

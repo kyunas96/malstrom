@@ -63,10 +63,12 @@ pub struct AppliedScaleResult {
     /// any newly created `ScaleInformation` blocks may not actually be
     /// honored by Ableton until the project is resaved there once.
     pub schema_predates_clip_scale: bool,
-    /// The written file's fresh scale candidates, so the frontend can patch
-    /// its cached project list instead of rescanning the whole folder. Only
-    /// set when a file was actually written (`new_path.is_some()`).
-    pub updated_scales: Option<Vec<ScaleCandidate>>,
+    /// The written file's fresh summary (path/name/scales), so the frontend
+    /// can patch or insert its cached project list instead of rescanning the
+    /// whole folder. Only set when a file was actually written
+    /// (`new_path.is_some()`); covers both an in-place overwrite and a
+    /// "save as new file" copy.
+    pub updated_project: Option<AlsProjectSummary>,
 }
 
 /// Writes `root_name`/`scale_name` onto every eligible MIDI clip in `path`.
@@ -117,16 +119,24 @@ pub async fn apply_scale_to_project(
         if !overwrite && dest_path.as_deref() == Some(src_path) {
             return Err("That name matches the original file — choose a different name to save as a new file.".to_string());
         }
-        let mut updated_scales = None;
+        let mut updated_project = None;
         let new_path = match &dest_path {
             Some(dest_path) => {
                 output_path::write_als(&new_xml, dest_path).map_err(|e| e.to_string())?;
-                updated_scales = Some(
-                    AlsInspector::from_xml(new_xml)
-                        .extract_scale_candidates()
-                        .map_err(|e| e.to_string())?
-                        .scales,
-                );
+                let scales = AlsInspector::from_xml(new_xml)
+                    .extract_scale_candidates()
+                    .map_err(|e| e.to_string())?
+                    .scales;
+                let name = dest_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_string();
+                updated_project = Some(AlsProjectSummary {
+                    path: dest_path.to_string_lossy().to_string(),
+                    name,
+                    scales,
+                });
                 Some(dest_path.to_string_lossy().to_string())
             }
             None => None,
@@ -134,7 +144,7 @@ pub async fn apply_scale_to_project(
 
         Ok(AppliedScaleResult {
             new_path,
-            updated_scales,
+            updated_project,
             clips_changed: outcome.clips_changed,
             clips_created: outcome.clips_created,
             clips_corrected: outcome.clips_corrected,

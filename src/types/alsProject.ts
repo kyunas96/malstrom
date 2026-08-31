@@ -45,6 +45,6 @@ export interface AppliedScaleResult {
    * actually be honored by Ableton until the project is resaved there once.
    */
   schema_predates_clip_scale: boolean;
-  /** Fresh scale candidates for the written file, when one was written. */
-  updated_scales: ScaleCandidate[] | null;
+  /** Fresh summary of the written file, when one was written. */
+  updated_project: AlsProject | null;
 }
