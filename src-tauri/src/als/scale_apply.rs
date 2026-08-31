@@ -272,6 +272,14 @@ pub(super) fn apply_scale_to_xml(
 
     edits.sort_by_key(|edit| edit.range.start);
     let new_xml = apply_edits(xml, &edits);
+
+    // The edits are byte-range splices, not a re-serialization -- verify the
+    // result is still well-formed before it's ever written to disk, since a
+    // wrong range here (e.g. from an Ableton version/schema we mis-detected)
+    // would otherwise silently corrupt the user's project file.
+    Document::parse(&new_xml)
+        .map_err(|e| anyhow!("Internal error: edited XML failed to re-parse ({e}), refusing to write"))?;
+
     Ok((new_xml, outcome))
 }
 
