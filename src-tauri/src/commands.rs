@@ -1,13 +1,16 @@
 use rayon::prelude::*;
 use serde::Serialize;
+use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter, State};
 
-use crate::als::categorize::TrackSummary;
+use crate::als::categorize::{TrackCategory, TrackSummary};
 use crate::als::inspector::AlsInspector;
 use crate::als::output_path;
 use crate::als::scale_candidates::ScaleCandidate;
 use crate::als::scale_constants::{NOTE_NAMES, SCALE_NAMES};
+use crate::overlay::{self, OverlayLock};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AlsProjectSummary {
@@ -167,21 +170,95 @@ pub async fn apply_scale_to_project(
 /// Lists `path`'s tracks with a derived category each. `live_db_folder` is
 /// whatever the user has configured in Settings; every `Live-files-*.db`
 /// inside it is tried in turn, and when unset (or empty) categorization is
-/// name-only.
+/// name-only. Per-track corrections from the `trackCategoryOverrides`
+/// overlay namespace are loaded once here and short-circuit both.
 #[tauri::command]
 pub async fn list_tracks(
+    app: AppHandle,
+    state: State<'_, OverlayLock>,
     path: String,
     live_db_folder: Option<String>,
 ) -> Result<Vec<TrackSummary>, String> {
+    let overrides = {
+        let _guard = state.0.lock().await;
+        overlay::read(&app)
+            .get("trackCategoryOverrides")
+            .and_then(|ns| ns.as_object())
+            .map(|ns| {
+                ns.iter()
+                    .filter_map(|(key, value)| {
+                        serde_json::from_value::<TrackCategory>(value.clone())
+                            .ok()
+                            .map(|category| (key.clone(), category))
+                    })
+                    .collect::<HashMap<String, TrackCategory>>()
+            })
+            .unwrap_or_default()
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let candidates = live_db_folder
             .map(|folder| crate::als::livedb::find_db_files(std::path::Path::new(&folder)))
             .unwrap_or_default();
         let inspector = AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
-        inspector.extract_tracks(&candidates).map_err(|e| e.to_string())
+        inspector
+            .extract_tracks(&candidates, &path, &overrides)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Reads `overlay.json[namespace][key]`, or `None` if either is absent.
+#[tauri::command]
+pub async fn overlay_get(
+    app: AppHandle,
+    state: State<'_, OverlayLock>,
+    namespace: String,
+    key: String,
+) -> Result<Option<Value>, String> {
+    let _guard = state.0.lock().await;
+    let data = overlay::read(&app);
+    Ok(data.get(&namespace).and_then(|ns| ns.get(&key)).cloned())
+}
+
+/// Writes `overlay.json[namespace][key] = value`, creating the namespace if
+/// it doesn't exist yet.
+#[tauri::command]
+pub async fn overlay_set(
+    app: AppHandle,
+    state: State<'_, OverlayLock>,
+    namespace: String,
+    key: String,
+    value: Value,
+) -> Result<(), String> {
+    let _guard = state.0.lock().await;
+    let mut data = overlay::read(&app);
+    data.entry(namespace)
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .expect("namespace entries are always objects")
+        .insert(key, value);
+    overlay::write(&app, &data).map_err(|e| e.to_string())
+}
+
+/// Removes `overlay.json[namespace][key]`. Prunes `namespace` too if that
+/// was its last entry, rather than leaving a dangling empty object.
+#[tauri::command]
+pub async fn overlay_remove(
+    app: AppHandle,
+    state: State<'_, OverlayLock>,
+    namespace: String,
+    key: String,
+) -> Result<(), String> {
+    let _guard = state.0.lock().await;
+    let mut data = overlay::read(&app);
+    if let Some(ns) = data.get_mut(&namespace).and_then(|ns| ns.as_object_mut()) {
+        ns.remove(&key);
+        if ns.is_empty() {
+            data.remove(&namespace);
+        }
+    }
+    overlay::write(&app, &data).map_err(|e| e.to_string())
 }
 
 pub fn list_projects_in(root_path: String) -> Result<Vec<AlsProjectSummary>, String> {

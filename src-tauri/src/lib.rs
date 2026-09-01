@@ -2,8 +2,12 @@
 
 pub mod als;
 mod commands;
+pub mod overlay;
 
-use commands::{apply_scale_to_project, list_projects, list_tracks};
+use commands::{
+    apply_scale_to_project, list_projects, list_tracks, overlay_get, overlay_remove, overlay_set,
+};
+use overlay::OverlayLock;
 
 pub use commands::list_projects_in;
 
@@ -23,10 +27,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(OverlayLock::default())
         .invoke_handler(tauri::generate_handler![
             list_projects,
             apply_scale_to_project,
-            list_tracks
+            list_tracks,
+            overlay_get,
+            overlay_set,
+            overlay_remove
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
