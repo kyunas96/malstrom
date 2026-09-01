@@ -2,8 +2,10 @@
 
 pub mod als;
 mod commands;
+mod store;
 
 use commands::{apply_scale_to_project, list_projects, list_tracks, mashup_create};
+use store::{store_get, store_remove, store_set, StoreLock};
 
 pub use commands::list_projects_in;
 
@@ -23,11 +25,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(StoreLock::default())
         .invoke_handler(tauri::generate_handler![
             list_projects,
             apply_scale_to_project,
             list_tracks,
-            mashup_create
+            mashup_create,
+            store_get,
+            store_set,
+            store_remove
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
