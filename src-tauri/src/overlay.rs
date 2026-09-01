@@ -31,7 +31,7 @@ pub fn read(app: &AppHandle) -> Map<String, Value> {
     read_from(&overlay_path(app))
 }
 
-fn read_from(path: &std::path::Path) -> Map<String, Value> {
+pub fn read_from(path: &std::path::Path) -> Map<String, Value> {
     let contents = match std::fs::read_to_string(path) {
         Ok(contents) => contents,
         Err(_) => return Map::new(),
@@ -57,88 +57,9 @@ pub fn write(app: &AppHandle, data: &Map<String, Value>) -> std::io::Result<()> 
     write_to(&overlay_path(app), data)
 }
 
-fn write_to(path: &std::path::Path, data: &Map<String, Value>) -> std::io::Result<()> {
+pub fn write_to(path: &std::path::Path, data: &Map<String, Value>) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(path, serde_json::to_vec_pretty(data)?)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn temp_overlay_path() -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir = std::env::temp_dir().join(format!("malstrom-overlay-test-{nanos}"));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir.join("overlay.json")
-    }
-
-    fn set(data: &mut Map<String, Value>, namespace: &str, key: &str, value: Value) {
-        data.entry(namespace.to_string())
-            .or_insert_with(|| Value::Object(Map::new()))
-            .as_object_mut()
-            .unwrap()
-            .insert(key.to_string(), value);
-    }
-
-    fn remove(data: &mut Map<String, Value>, namespace: &str, key: &str) {
-        if let Some(ns) = data.get_mut(namespace).and_then(|ns| ns.as_object_mut()) {
-            ns.remove(key);
-            if ns.is_empty() {
-                data.remove(namespace);
-            }
-        }
-    }
-
-    #[test]
-    fn missing_file_reads_as_empty() {
-        let path = temp_overlay_path();
-        assert!(!path.exists());
-        assert_eq!(read_from(&path), Map::new());
-    }
-
-    #[test]
-    fn corrupt_file_reads_as_empty_and_is_backed_up() {
-        let path = temp_overlay_path();
-        std::fs::write(&path, b"not json").unwrap();
-
-        assert_eq!(read_from(&path), Map::new());
-
-        let dir = path.parent().unwrap();
-        let backups: Vec<_> = std::fs::read_dir(dir)
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().starts_with("overlay.json.bak-"))
-            .collect();
-        assert_eq!(backups.len(), 1);
-        assert!(!path.exists());
-    }
-
-    #[test]
-    fn round_trips_a_value_through_set_get_remove() {
-        let path = temp_overlay_path();
-
-        let mut data = read_from(&path);
-        set(&mut data, "trackCategoryOverrides", "track-1", Value::String("Drums".into()));
-        write_to(&path, &data).unwrap();
-
-        let data = read_from(&path);
-        assert_eq!(
-            data["trackCategoryOverrides"]["track-1"],
-            Value::String("Drums".into())
-        );
-
-        let mut data = data;
-        remove(&mut data, "trackCategoryOverrides", "track-1");
-        write_to(&path, &data).unwrap();
-
-        // Emptied namespace is pruned, not left as a dangling {}.
-        let data = read_from(&path);
-        assert!(!data.contains_key("trackCategoryOverrides"));
-    }
 }

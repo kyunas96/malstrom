@@ -2,7 +2,7 @@
 
 pub mod als;
 mod commands;
-mod overlay;
+pub mod overlay;
 
 use commands::{
     apply_scale_to_project, list_projects, list_tracks, overlay_get, overlay_remove, overlay_set,
