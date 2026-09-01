@@ -17,7 +17,7 @@ impl Default for OverlayLock {
     }
 }
 
-pub fn overlay_path(app: &AppHandle) -> PathBuf {
+fn overlay_path(app: &AppHandle) -> PathBuf {
     app.path()
         .app_config_dir()
         .expect("app_config_dir unavailable")
