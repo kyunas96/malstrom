@@ -598,6 +598,35 @@ button:active {
 }
 
 /* ==========================================================================
+   Settings
+   ========================================================================== */
+
+.settings-gear-button {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  background: transparent;
+  border-color: transparent;
+  font-size: 1.2em;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.settings-gear-button:hover {
+  border-color: var(--border-subtle);
+}
+
+.settings-db-path {
+  margin: 0 0 1em;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
    Pull confirm dialog
    ========================================================================== */
 
