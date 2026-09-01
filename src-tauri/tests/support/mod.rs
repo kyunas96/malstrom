@@ -4,6 +4,7 @@
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use rusqlite::Connection;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -129,6 +130,33 @@ pub fn write_als_fixture(path: &Path, xml: &str) {
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder.write_all(xml.as_bytes()).unwrap();
     encoder.finish().unwrap();
+}
+
+/// Opens a fresh `Live-files-*.db`-shaped sqlite file at `path`, creating the
+/// `files`/`keywords` schema every Live Database fixture needs: `files` holds
+/// both content rows and keyword rows, joined by `keywords`
+/// (`file_id` -> content, `keyw_id` -> tag row).
+pub fn open_live_db(path: &Path) -> Connection {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE files (file_id INTEGER PRIMARY KEY, name TEXT);
+         CREATE TABLE keywords (file_id INTEGER, keyw_id INTEGER, is_auto BOOL);",
+    )
+    .unwrap();
+    conn
+}
+
+/// A `Live-files-*.db` fixture in `dir` tagging `filename` with a single
+/// `tag`.
+pub fn db_with_tag(dir: &Path, filename: &str, tag: &str) -> PathBuf {
+    let db_path = dir.join("Live-files-test.db");
+    let conn = open_live_db(&db_path);
+    conn.execute_batch(&format!(
+        "INSERT INTO files (file_id, name) VALUES (1, '{filename}'), (100, '{tag}');
+         INSERT INTO keywords (file_id, keyw_id, is_auto) VALUES (1, 100, 1);"
+    ))
+    .unwrap();
+    db_path
 }
 
 /// A fresh, uniquely-named temp directory for a single test to write its

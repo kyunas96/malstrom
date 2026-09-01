@@ -5,7 +5,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use super::{scale_apply, scale_candidates};
+use super::{categorize, scale_apply, scale_candidates};
+use categorize::TrackSummary;
 use scale_apply::ApplyScaleOutcome;
 use scale_candidates::ScaleCandidates;
 
@@ -50,5 +51,14 @@ impl AlsInspector {
         scale_index: i32,
     ) -> Result<(String, ApplyScaleOutcome)> {
         scale_apply::apply_scale_to_xml(&self.xml, root_note, scale_index)
+    }
+
+    /// Lists every track with a derived category. `live_db_path`, when
+    /// given, is tried first via the Live Database; every track without a
+    /// resolved DB tag (or when no path is given) falls back to
+    /// name-keyword matching.
+    pub fn extract_tracks(&self, live_db_path: Option<&Path>) -> Result<Vec<TrackSummary>> {
+        let doc = self.parse()?;
+        categorize::list_tracks(&doc, live_db_path)
     }
 }
