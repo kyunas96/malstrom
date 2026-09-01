@@ -1,6 +1,28 @@
 use anyhow::{anyhow, Result};
 use rusqlite::{Connection, OpenFlags};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Finds every `Live-files-*.db` directly inside `folder` -- Ableton keeps
+/// one such file per installed Live major version, so a user's projects can
+/// span several. Sorted for deterministic lookup order. A missing or
+/// unreadable folder yields an empty list rather than an error, so the
+/// caller naturally falls back to name-based categorization.
+pub fn find_db_files(folder: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("Live-files-") && name.ends_with(".db"))
+        })
+        .collect();
+    paths.sort();
+    paths
+}
 
 /// Looks up `filename`'s auto-tags in a Live Database (`Live-files-*.db`),
 /// opened read-only at `db_path`. Tags are rows in `files` themselves

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::livedb;
 
@@ -182,10 +182,10 @@ fn instrument_tag_filename(device: &Node) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn categorize_track(track: &Node, live_db_path: Option<&Path>) -> TrackCategory {
+fn categorize_track(track: &Node, live_db_paths: &[PathBuf]) -> TrackCategory {
     let name = effective_name(track);
 
-    if let Some(db_path) = live_db_path {
+    if !live_db_paths.is_empty() {
         let filenames: Vec<String> = if track.tag_name().name() == "MidiTrack" {
             instrument_device(track)
                 .and_then(|d| instrument_tag_filename(&d))
@@ -194,10 +194,12 @@ fn categorize_track(track: &Node, live_db_path: Option<&Path>) -> TrackCategory 
         } else {
             sample_filenames(track)
         };
-        for filename in filenames {
-            if let Ok(tags) = livedb::lookup_tags(db_path, &filename) {
-                if let Some(category) = categorize_by_db_tags(&tags) {
-                    return category;
+        for filename in &filenames {
+            for db_path in live_db_paths {
+                if let Ok(tags) = livedb::lookup_tags(db_path, filename) {
+                    if let Some(category) = categorize_by_db_tags(&tags) {
+                        return category;
+                    }
                 }
             }
         }
@@ -207,10 +209,10 @@ fn categorize_track(track: &Node, live_db_path: Option<&Path>) -> TrackCategory 
 }
 
 /// Walks every top-level track in the document, resolving a category for
-/// each. `live_db_path` is optional -- when `None` (or when a lookup
-/// errors, e.g. an invalid path), every track falls back to
-/// `categorize_by_name`.
-pub fn list_tracks(doc: &Document, live_db_path: Option<&Path>) -> Result<Vec<TrackSummary>> {
+/// each. `live_db_paths` lists every `Live-files-*.db` to try, in order;
+/// when empty (or when every lookup errors, e.g. an invalid path), every
+/// track falls back to `categorize_by_name`.
+pub fn list_tracks(doc: &Document, live_db_paths: &[PathBuf]) -> Result<Vec<TrackSummary>> {
     let tracks_node = doc
         .descendants()
         .find(|n| n.tag_name().name() == "Tracks")
@@ -223,7 +225,7 @@ pub fn list_tracks(doc: &Document, live_db_path: Option<&Path>) -> Result<Vec<Tr
         .map(|track| TrackSummary {
             name: effective_name(&track),
             kind: track_kind(&track),
-            category: categorize_track(&track, live_db_path),
+            category: categorize_track(&track, live_db_paths),
         })
         .collect())
 }

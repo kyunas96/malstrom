@@ -164,19 +164,21 @@ pub async fn apply_scale_to_project(
     .map_err(|e| e.to_string())?
 }
 
-/// Lists `path`'s tracks with a derived category each. `live_db_path` is
-/// whatever the user has configured in Settings; when `None`, categorization
-/// is name-only.
+/// Lists `path`'s tracks with a derived category each. `live_db_folder` is
+/// whatever the user has configured in Settings; every `Live-files-*.db`
+/// inside it is tried in turn, and when unset (or empty) categorization is
+/// name-only.
 #[tauri::command]
 pub async fn list_tracks(
     path: String,
-    live_db_path: Option<String>,
+    live_db_folder: Option<String>,
 ) -> Result<Vec<TrackSummary>, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        let candidates = live_db_folder
+            .map(|folder| crate::als::livedb::find_db_files(std::path::Path::new(&folder)))
+            .unwrap_or_default();
         let inspector = AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
-        inspector
-            .extract_tracks(live_db_path.as_deref().map(std::path::Path::new))
-            .map_err(|e| e.to_string())
+        inspector.extract_tracks(&candidates).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?

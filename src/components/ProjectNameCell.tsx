@@ -11,13 +11,13 @@ export function ProjectNameCell({
   path,
   pinnedPaths,
   activeTags,
-  liveDbPath,
+  liveDbFolder,
 }: {
   name: string;
   path: string;
   pinnedPaths: string[];
   activeTags: ActiveScaleTag[];
-  liveDbPath: string | null;
+  liveDbFolder: string | null;
 }) {
   const isPinned = pinnedPaths.includes(path);
   const tagIndex = isPinned ? activeTags.findIndex((t) => t.originPath === path) : -1;
@@ -33,7 +33,7 @@ export function ProjectNameCell({
     try {
       const result = await invoke<TrackSummary[]>('list_tracks', {
         path,
-        liveDbPath: liveDbPath ?? undefined,
+        liveDbFolder: liveDbFolder ?? undefined,
       });
       setTracks(result);
     } catch (err) {
