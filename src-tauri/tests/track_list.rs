@@ -1,7 +1,6 @@
 mod support;
 
 use malstrom_lib::als::AlsInspector;
-use rusqlite::Connection;
 
 fn project_xml(tracks: &str) -> String {
     format!(r#"<Ableton><LiveSet><Tracks>{tracks}</Tracks></LiveSet></Ableton>"#)
@@ -52,19 +51,6 @@ fn simpler_device_with_sample(sample_path: &str) -> String {
             <SampleRef><FileRef><Path Value="{sample_path}" /></FileRef></SampleRef>
         </OriginalSimpler>"#
     )
-}
-
-fn db_with_tags(dir: &std::path::Path, filename: &str, tag: &str) -> std::path::PathBuf {
-    let db_path = dir.join("Live-files-test.db");
-    let conn = Connection::open(&db_path).unwrap();
-    conn.execute_batch(&format!(
-        "CREATE TABLE files (file_id INTEGER PRIMARY KEY, name TEXT);
-         CREATE TABLE keywords (file_id INTEGER, keyw_id INTEGER, is_auto BOOL);
-         INSERT INTO files (file_id, name) VALUES (1, '{filename}'), (100, '{tag}');
-         INSERT INTO keywords (file_id, keyw_id, is_auto) VALUES (1, 100, 1);"
-    ))
-    .unwrap();
-    db_path
 }
 
 #[test]
@@ -120,15 +106,7 @@ fn resolves_sample_filename_from_audio_track() {
 #[test]
 fn db_tag_wins_over_an_unrelated_track_name() {
     let dir = support::temp_dir("track-list-db");
-    let db_path = dir.join("Live-files-test.db");
-    let conn = Connection::open(&db_path).unwrap();
-    conn.execute_batch(
-        "CREATE TABLE files (file_id INTEGER PRIMARY KEY, name TEXT);
-         CREATE TABLE keywords (file_id INTEGER, keyw_id INTEGER, is_auto BOOL);
-         INSERT INTO files (file_id, name) VALUES (1, 'Kick.wav'), (100, 'Kick');
-         INSERT INTO keywords (file_id, keyw_id, is_auto) VALUES (1, 100, 1);",
-    )
-    .unwrap();
+    let db_path = support::db_with_tag(&dir, "Kick.wav", "Kick");
 
     let sample_path = dir.join("Kick.wav");
     let xml = project_xml(&audio_track_with_sample(
@@ -150,7 +128,7 @@ fn db_tag_wins_over_an_unrelated_track_name() {
 #[test]
 fn categorizes_rack_instrument_by_its_own_preset_not_a_nested_sample() {
     let dir = support::temp_dir("track-list-rack-preset");
-    let db_path = db_with_tags(&dir, "Abyss Kit.adg", "drum loop");
+    let db_path = support::db_with_tag(&dir, "Abyss Kit.adg", "drum loop");
 
     let xml = project_xml(&midi_track_with_devices(
         "Untitled",
@@ -172,7 +150,7 @@ fn categorizes_rack_instrument_by_its_own_preset_not_a_nested_sample() {
 fn categorizes_simpler_by_its_wrapped_sample() {
     let dir = support::temp_dir("track-list-simpler-sample");
     let sample_path = dir.join("Kick.wav");
-    let db_path = db_with_tags(&dir, "Kick.wav", "kick");
+    let db_path = support::db_with_tag(&dir, "Kick.wav", "kick");
 
     let xml = project_xml(&midi_track_with_devices(
         "Untitled",
@@ -193,7 +171,7 @@ fn categorizes_simpler_by_its_wrapped_sample() {
 #[test]
 fn skips_leading_midi_effect_to_find_the_instrument() {
     let dir = support::temp_dir("track-list-midi-fx");
-    let db_path = db_with_tags(&dir, "Abyss Kit.adg", "drum loop");
+    let db_path = support::db_with_tag(&dir, "Abyss Kit.adg", "drum loop");
 
     let devices = format!(
         r#"<MidiArpeggiator Id="0" />{}"#,
@@ -225,7 +203,7 @@ fn factory_default_preset_falls_back_to_name() {
     // FilePresetRef found" -> falls back to name -- which does resolve here
     // via "lead".
     let dir = support::temp_dir("track-list-default-preset");
-    let db_path = db_with_tags(&dir, "Abyss Kit.adg", "drum loop");
+    let db_path = support::db_with_tag(&dir, "Abyss Kit.adg", "drum loop");
     let tracks = inspector.extract_tracks(Some(&db_path)).unwrap();
 
     assert_eq!(tracks.len(), 1);

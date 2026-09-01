@@ -1,18 +1,11 @@
 mod support;
 
 use malstrom_lib::als::livedb::lookup_tags;
-use rusqlite::Connection;
 
-/// Builds a tiny fixture DB shaped like a real `Live-files-*.db`: the
-/// `files` table holds both content rows and keyword rows, joined by the
-/// `keywords` table -- not a real system DB, so this stays portable to CI.
+/// Builds a tiny fixture DB shaped like a real `Live-files-*.db` -- not a
+/// real system DB, so this stays portable to CI.
 fn fixture_db(path: &std::path::Path) {
-    let conn = Connection::open(path).unwrap();
-    conn.execute_batch(
-        "CREATE TABLE files (file_id INTEGER PRIMARY KEY, name TEXT);
-         CREATE TABLE keywords (file_id INTEGER, keyw_id INTEGER, is_auto BOOL);",
-    )
-    .unwrap();
+    let conn = support::open_live_db(path);
 
     // Two distinct content rows share the filename "Kick.wav" (e.g. one
     // original, one a "Collect All and Save" copy), tagged differently.
