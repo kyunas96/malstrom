@@ -1,6 +1,7 @@
 mod support;
 
-use malstrom_lib::als::AlsInspector;
+use malstrom_lib::als::{AlsInspector, TrackCategory};
+use std::collections::HashMap;
 
 fn project_xml(tracks: &str) -> String {
     format!(r#"<Ableton><LiveSet><Tracks>{tracks}</Tracks></LiveSet></Ableton>"#)
@@ -61,17 +62,41 @@ fn excludes_return_tracks() {
         return_track("A-Reverb")
     ));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&[]).unwrap();
+    let tracks = inspector.extract_tracks(&[], "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert_eq!(tracks[0].name, "Lead Vocal");
 }
 
 #[test]
+fn override_wins_over_db_tags_and_name() {
+    let dir = support::temp_dir("track-list-override");
+    let db_paths = [support::db_with_tag(&dir, "Kick.wav", "Kick")];
+
+    let sample_path = dir.join("Kick.wav");
+    let xml = project_xml(&audio_track_with_sample(
+        "Untitled",
+        sample_path.to_str().unwrap(),
+    ));
+    let inspector = AlsInspector::from_xml(xml);
+
+    let mut overrides = HashMap::new();
+    overrides.insert("proj.als::Untitled".to_string(), TrackCategory::Vocals);
+    let tracks = inspector
+        .extract_tracks(&db_paths, "proj.als", &overrides)
+        .unwrap();
+
+    assert_eq!(tracks.len(), 1);
+    assert!(matches!(tracks[0].category, TrackCategory::Vocals));
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn falls_back_to_name_when_no_db_path_given() {
     let xml = project_xml(&midi_track("Lead Vocal"));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&[]).unwrap();
+    let tracks = inspector.extract_tracks(&[], "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert_eq!(tracks[0].name, "Lead Vocal");
@@ -93,7 +118,7 @@ fn resolves_sample_filename_from_audio_track() {
     // the sample-resolution path doesn't panic/error even when unused, and
     // that a track with no name keyword lands in Other rather than
     // crashing or guessing.
-    let tracks = inspector.extract_tracks(&[]).unwrap();
+    let tracks = inspector.extract_tracks(&[], "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert_eq!(tracks[0].kind, "Audio");
@@ -114,7 +139,7 @@ fn db_tag_wins_over_an_unrelated_track_name() {
         sample_path.to_str().unwrap(),
     ));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&db_paths).unwrap();
+    let tracks = inspector.extract_tracks(&db_paths, "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert!(matches!(
@@ -135,7 +160,7 @@ fn categorizes_rack_instrument_by_its_own_preset_not_a_nested_sample() {
         &rack_device_with_preset("DrumGroupDevice", "Drums/Abyss Kit.adg"),
     ));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&db_paths).unwrap();
+    let tracks = inspector.extract_tracks(&db_paths, "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert!(matches!(
@@ -157,7 +182,7 @@ fn categorizes_simpler_by_its_wrapped_sample() {
         &simpler_device_with_sample(sample_path.to_str().unwrap()),
     ));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&db_paths).unwrap();
+    let tracks = inspector.extract_tracks(&db_paths, "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert!(matches!(
@@ -179,7 +204,7 @@ fn skips_leading_midi_effect_to_find_the_instrument() {
     );
     let xml = project_xml(&midi_track_with_devices("Untitled", &devices));
     let inspector = AlsInspector::from_xml(xml);
-    let tracks = inspector.extract_tracks(&db_paths).unwrap();
+    let tracks = inspector.extract_tracks(&db_paths, "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert!(matches!(
@@ -204,7 +229,7 @@ fn factory_default_preset_falls_back_to_name() {
     // via "lead".
     let dir = support::temp_dir("track-list-default-preset");
     let db_paths = [support::db_with_tag(&dir, "Abyss Kit.adg", "drum loop")];
-    let tracks = inspector.extract_tracks(&db_paths).unwrap();
+    let tracks = inspector.extract_tracks(&db_paths, "", &Default::default()).unwrap();
 
     assert_eq!(tracks.len(), 1);
     assert!(matches!(

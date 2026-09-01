@@ -5,8 +5,10 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use std::collections::HashMap;
+
 use super::{categorize, scale_apply, scale_candidates};
-use categorize::TrackSummary;
+use categorize::{TrackCategory, TrackSummary};
 use scale_apply::ApplyScaleOutcome;
 use scale_candidates::ScaleCandidates;
 
@@ -56,9 +58,15 @@ impl AlsInspector {
     /// Lists every track with a derived category. `live_db_paths`, when
     /// non-empty, are tried in order via the Live Database; every track
     /// without a resolved DB tag (or when no paths are given) falls back to
-    /// name-keyword matching.
-    pub fn extract_tracks(&self, live_db_paths: &[std::path::PathBuf]) -> Result<Vec<TrackSummary>> {
+    /// name-keyword matching. `overrides` (keyed `"<project_path>::<track_name>"`)
+    /// short-circuits both for any track with a matching entry.
+    pub fn extract_tracks(
+        &self,
+        live_db_paths: &[std::path::PathBuf],
+        project_path: &str,
+        overrides: &HashMap<String, TrackCategory>,
+    ) -> Result<Vec<TrackSummary>> {
         let doc = self.parse()?;
-        categorize::list_tracks(&doc, live_db_paths)
+        categorize::list_tracks(&doc, live_db_paths, project_path, overrides)
     }
 }

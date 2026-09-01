@@ -1,10 +1,11 @@
 use rayon::prelude::*;
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
-use crate::als::categorize::TrackSummary;
+use crate::als::categorize::{TrackCategory, TrackSummary};
 use crate::als::inspector::AlsInspector;
 use crate::als::output_path;
 use crate::als::scale_candidates::ScaleCandidate;
@@ -169,18 +170,39 @@ pub async fn apply_scale_to_project(
 /// Lists `path`'s tracks with a derived category each. `live_db_folder` is
 /// whatever the user has configured in Settings; every `Live-files-*.db`
 /// inside it is tried in turn, and when unset (or empty) categorization is
-/// name-only.
+/// name-only. Per-track corrections from the `trackCategoryOverrides`
+/// overlay namespace are loaded once here and short-circuit both.
 #[tauri::command]
 pub async fn list_tracks(
+    app: AppHandle,
+    state: State<'_, OverlayLock>,
     path: String,
     live_db_folder: Option<String>,
 ) -> Result<Vec<TrackSummary>, String> {
+    let overrides = {
+        let _guard = state.0.lock().await;
+        overlay::read(&app)
+            .get("trackCategoryOverrides")
+            .and_then(|ns| ns.as_object())
+            .map(|ns| {
+                ns.iter()
+                    .filter_map(|(key, value)| {
+                        serde_json::from_value::<TrackCategory>(value.clone())
+                            .ok()
+                            .map(|category| (key.clone(), category))
+                    })
+                    .collect::<HashMap<String, TrackCategory>>()
+            })
+            .unwrap_or_default()
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let candidates = live_db_folder
             .map(|folder| crate::als::livedb::find_db_files(std::path::Path::new(&folder)))
             .unwrap_or_default();
         let inspector = AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
-        inspector.extract_tracks(&candidates).map_err(|e| e.to_string())
+        inspector
+            .extract_tracks(&candidates, &path, &overrides)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?

@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::livedb;
@@ -8,7 +9,7 @@ use super::livedb;
 /// Coarse track grouping derived from a track's name or, when available,
 /// its resolved Live Database tags. `Other` is a first-class outcome, not
 /// an error state -- not every track is expected to match.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TrackCategory {
     Drums,
     Bass,
@@ -182,8 +183,21 @@ fn instrument_tag_filename(device: &Node) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn categorize_track(track: &Node, live_db_paths: &[PathBuf]) -> TrackCategory {
+/// Checks a per-track override (see docs/track-category-overrides-spec.md)
+/// before falling through to DB-tag/name matching. `overrides` is keyed
+/// `"<project_path>::<track_name>"`, the whole `trackCategoryOverrides`
+/// overlay namespace loaded once by the caller.
+fn categorize_track(
+    track: &Node,
+    live_db_paths: &[PathBuf],
+    project_path: &str,
+    overrides: &HashMap<String, TrackCategory>,
+) -> TrackCategory {
     let name = effective_name(track);
+
+    if let Some(category) = overrides.get(&format!("{project_path}::{name}")) {
+        return *category;
+    }
 
     if !live_db_paths.is_empty() {
         let filenames: Vec<String> = if track.tag_name().name() == "MidiTrack" {
@@ -211,8 +225,15 @@ fn categorize_track(track: &Node, live_db_paths: &[PathBuf]) -> TrackCategory {
 /// Walks every top-level track in the document, resolving a category for
 /// each. `live_db_paths` lists every `Live-files-*.db` to try, in order;
 /// when empty (or when every lookup errors, e.g. an invalid path), every
-/// track falls back to `categorize_by_name`.
-pub fn list_tracks(doc: &Document, live_db_paths: &[PathBuf]) -> Result<Vec<TrackSummary>> {
+/// track falls back to `categorize_by_name`. `overrides` short-circuits
+/// both of those for any track with a matching entry -- see
+/// `categorize_track`.
+pub fn list_tracks(
+    doc: &Document,
+    live_db_paths: &[PathBuf],
+    project_path: &str,
+    overrides: &HashMap<String, TrackCategory>,
+) -> Result<Vec<TrackSummary>> {
     let tracks_node = doc
         .descendants()
         .find(|n| n.tag_name().name() == "Tracks")
@@ -225,7 +246,7 @@ pub fn list_tracks(doc: &Document, live_db_paths: &[PathBuf]) -> Result<Vec<Trac
         .map(|track| TrackSummary {
             name: effective_name(&track),
             kind: track_kind(&track),
-            category: categorize_track(&track, live_db_paths),
+            category: categorize_track(&track, live_db_paths, project_path, overrides),
         })
         .collect())
 }
