@@ -2,7 +2,7 @@
 
 pub mod als;
 mod commands;
-mod store;
+pub mod store;
 
 use commands::{
     apply_scale_to_project, list_projects, list_tracks, mashup_create, store_get, store_remove,
