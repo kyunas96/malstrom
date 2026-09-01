@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use serde_json::{Map, Value};
-use tauri::{async_runtime::Mutex, AppHandle, Manager, State};
+use tauri::{async_runtime::Mutex, AppHandle, Manager};
 
 /// Guards read-modify-write access to the overlay file so concurrent Tauri
 /// command invocations serialize instead of racing on disk.
@@ -17,7 +17,7 @@ impl Default for OverlayLock {
     }
 }
 
-fn overlay_path(app: &AppHandle) -> PathBuf {
+pub fn overlay_path(app: &AppHandle) -> PathBuf {
     app.path()
         .app_config_dir()
         .expect("app_config_dir unavailable")
@@ -27,7 +27,7 @@ fn overlay_path(app: &AppHandle) -> PathBuf {
 /// Reads the overlay file. Missing or empty -> `{}`. Corrupt -> backs up the
 /// bad file as `overlay.json.bak-<unix-timestamp>` and continues with `{}`;
 /// never a hard failure.
-fn read(app: &AppHandle) -> Map<String, Value> {
+pub fn read(app: &AppHandle) -> Map<String, Value> {
     read_from(&overlay_path(app))
 }
 
@@ -53,7 +53,7 @@ fn read_from(path: &std::path::Path) -> Map<String, Value> {
     }
 }
 
-fn write(app: &AppHandle, data: &Map<String, Value>) -> std::io::Result<()> {
+pub fn write(app: &AppHandle, data: &Map<String, Value>) -> std::io::Result<()> {
     write_to(&overlay_path(app), data)
 }
 
@@ -62,57 +62,6 @@ fn write_to(path: &std::path::Path, data: &Map<String, Value>) -> std::io::Resul
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(path, serde_json::to_vec_pretty(data)?)
-}
-
-#[tauri::command]
-pub async fn overlay_get(
-    app: AppHandle,
-    state: State<'_, OverlayLock>,
-    namespace: String,
-    key: String,
-) -> Result<Option<Value>, String> {
-    let _guard = state.0.lock().await;
-    let data = read(&app);
-    Ok(data
-        .get(&namespace)
-        .and_then(|ns| ns.get(&key))
-        .cloned())
-}
-
-#[tauri::command]
-pub async fn overlay_set(
-    app: AppHandle,
-    state: State<'_, OverlayLock>,
-    namespace: String,
-    key: String,
-    value: Value,
-) -> Result<(), String> {
-    let _guard = state.0.lock().await;
-    let mut data = read(&app);
-    data.entry(namespace)
-        .or_insert_with(|| Value::Object(Map::new()))
-        .as_object_mut()
-        .expect("namespace entries are always objects")
-        .insert(key, value);
-    write(&app, &data).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn overlay_remove(
-    app: AppHandle,
-    state: State<'_, OverlayLock>,
-    namespace: String,
-    key: String,
-) -> Result<(), String> {
-    let _guard = state.0.lock().await;
-    let mut data = read(&app);
-    if let Some(ns) = data.get_mut(&namespace).and_then(|ns| ns.as_object_mut()) {
-        ns.remove(&key);
-        if ns.is_empty() {
-            data.remove(&namespace);
-        }
-    }
-    write(&app, &data).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
