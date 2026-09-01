@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
 // chosen, so this suite needs no Tauri backend.
 
 function rowFor(page: Page, projectName: string) {
-  return page.locator('tr', { hasText: projectName });
+  return page.locator('.scales-card-row', { hasText: projectName });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -29,7 +29,10 @@ test('clicking a scale pill adds a chip, pins the origin row, and filters the ta
 
   // Only Sunset Drive carries C Major (or an alternate of it), so it's the
   // sole remaining row, and it must be visually pinned.
-  await expect(rowFor(page, 'Sunset Drive')).toContainText('pinned — source of this filter');
+  await expect(rowFor(page, 'Sunset Drive').locator('.pinned-icon')).toHaveAttribute(
+    'title',
+    'Pinned — source of filter',
+  );
   await expect(rowFor(page, 'Midnight Loop')).toHaveCount(0);
   await expect(rowFor(page, 'Glass Corridor')).toHaveCount(0);
 
@@ -55,10 +58,13 @@ test('the origin row un-pins only once its last tag is removed via the chip', as
   await sunsetRow.getByRole('button', { name: /^Major/ }).click();
   await sunsetRow.getByRole('button', { name: /Minor Pentatonic/ }).click();
 
-  await expect(sunsetRow).toContainText('pinned — source of this filter');
+  await expect(sunsetRow.locator('.pinned-icon')).toHaveAttribute('title', 'Pinned — source of filter');
 
   await page.getByText('Major — from Sunset Drive').locator('..').getByRole('button', { name: /Remove Major filter/ }).click();
-  await expect(rowFor(page, 'Sunset Drive')).toContainText('pinned — source of this filter');
+  await expect(rowFor(page, 'Sunset Drive').locator('.pinned-icon')).toHaveAttribute(
+    'title',
+    'Pinned — source of filter',
+  );
 
   await page.getByText('Minor Pentatonic — from Sunset Drive').locator('..').getByRole('button', { name: /Remove Minor Pentatonic filter/ }).click();
   await expect(page.locator('text=Clear all')).toHaveCount(0);

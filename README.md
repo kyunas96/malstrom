@@ -97,8 +97,8 @@ extracted from a project and how scale candidates are scored.
 - [ ] Detect near-matches (a clip that fits a scale except for one or two
       notes)
 - [ ] Packaged builds / releases
-- [ ] Categorize a project's tracks (DRUMS, BASS, PERCUSSION, VOCALS, ...)
-      from their names, so contents can be presented coherently — see
+- [x] Categorize a project's tracks (DRUMS, BASS, PERCUSSION, VOCALS, ...)
+      from their names — not yet surfaced in the UI
 - [ ] **Mashup**: filter projects down to a shared scale, select several of
       them, and get a picker of elements to pull from each into one new
 
