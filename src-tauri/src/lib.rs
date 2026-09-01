@@ -4,8 +4,11 @@ pub mod als;
 mod commands;
 mod store;
 
-use commands::{apply_scale_to_project, list_projects, list_tracks, mashup_create};
-use store::{store_get, store_remove, store_set, StoreLock};
+use commands::{
+    apply_scale_to_project, list_projects, list_tracks, mashup_create, store_get, store_remove,
+    store_set,
+};
+use store::StoreLock;
 
 pub use commands::list_projects_in;
 
