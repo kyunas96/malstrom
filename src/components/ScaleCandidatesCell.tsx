@@ -8,6 +8,7 @@ import { EmptyScalesIcon } from './icons/EmptyScalesIcon';
 import { ScaleMatchEntry } from './ScaleMatchEntry';
 
 export function ScaleCandidatesCell({
+  projectPath,
   scales,
   minCoveragePercent,
   activeTags,
@@ -16,6 +17,7 @@ export function ScaleCandidatesCell({
   onPullNewFile,
   pullStatus,
 }: {
+  projectPath: string;
   scales: ScaleCandidate[];
   minCoveragePercent: number;
   activeTags: ActiveScaleTag[];
@@ -29,9 +31,13 @@ export function ScaleCandidatesCell({
   // Once a filter is active, a row only earned its place in the table by
   // matching one of the active tags (see projectMatchesTags upstream) — so
   // once here, showing every other unrelated compatible scale is just noise;
-  // narrow the row down to the scale(s) that actually match.
+  // narrow the row down to the scale(s) that actually match. Exempt this
+  // row's own origin tags: it's already pinned as the filter's source, not
+  // because it matched, and narrowing it too would make it impossible to
+  // add a second tag from the same row (its own other pills would vanish).
+  const isOriginRow = activeTags.some((t) => t.originPath === projectPath);
   const tagFilteredScales =
-    activeTags.length > 0
+    activeTags.length > 0 && !isOriginRow
       ? scales.filter((s) => activeTags.some((t) => candidateMatchesTag(s, t)))
       : scales;
 

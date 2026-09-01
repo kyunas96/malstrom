@@ -76,6 +76,7 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
         header: 'Compatible Scales',
         cell: (info) => (
           <ScaleCandidatesCell
+            projectPath={info.row.original.path}
             scales={info.getValue()}
             minCoveragePercent={minCoveragePercent}
             activeTags={activeTags}
@@ -123,21 +124,17 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
       setTagMode('any');
     });
 
-  if (!rootFolder || loading) {
+  if (loading) {
     return (
       <section className="folder-gate">
         <button type="button" onClick={chooseFolder} disabled={loading}>
           Choose Root Folder
         </button>
         {rootFolder && <p>{rootFolder}</p>}
-        {loading && (
-          <>
-            <progress value={progress?.completed} max={progress?.total} />
-            <p>
-              {progress ? `Scanning folder… (${progress.completed}/${progress.total})` : 'Scanning folder…'}
-            </p>
-          </>
-        )}
+        <progress value={progress?.completed} max={progress?.total} />
+        <p>
+          {progress ? `Scanning folder… (${progress.completed}/${progress.total})` : 'Scanning folder…'}
+        </p>
         {error && <p className="error-text">{error}</p>}
       </section>
     );
@@ -146,12 +143,20 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
   return (
     <section className="results-section">
       <div className="folder-bar">
-        <p className="folder-bar-path" title={rootFolder}>
-          {rootFolder}
-        </p>
-        <button type="button" className="folder-bar-change" onClick={chooseFolder}>
-          Change Folder
-        </button>
+        {rootFolder ? (
+          <>
+            <p className="folder-bar-path" title={rootFolder}>
+              {rootFolder}
+            </p>
+            <button type="button" className="folder-bar-change" onClick={chooseFolder}>
+              Change Folder
+            </button>
+          </>
+        ) : (
+          <button type="button" className="folder-bar-change" onClick={chooseFolder}>
+            Choose Root Folder
+          </button>
+        )}
       </div>
       {error && <p className="error-text">{error}</p>}
       <div className="scales-header">

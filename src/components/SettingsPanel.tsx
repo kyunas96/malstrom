@@ -1,3 +1,5 @@
+import { Modal } from './Modal';
+
 export function SettingsPanel({
   onClose,
   liveDbFolder,
@@ -10,32 +12,24 @@ export function SettingsPanel({
   onClearFolder: () => void;
 }) {
   return (
-    <div className="pull-confirm-backdrop" onClick={onClose}>
-      <div
-        className="pull-confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-panel-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id="settings-panel-title">Settings</h3>
-        <p className="settings-db-path" title={liveDbFolder ?? undefined}>
-          Live Database folder: {liveDbFolder ?? 'Not set'}
-        </p>
-        <div className="pull-confirm-actions">
-          <button type="button" className="filter-toggle active" onClick={onChooseFolder}>
-            Choose Live Database Folder…
+    <Modal onClose={onClose} labelledBy="settings-panel-title">
+      <h3 id="settings-panel-title">Settings</h3>
+      <p className="settings-db-path" title={liveDbFolder ?? undefined}>
+        Live Database folder: {liveDbFolder ?? 'Not set'}
+      </p>
+      <div className="pull-confirm-actions">
+        <button type="button" className="filter-toggle active" onClick={onChooseFolder}>
+          Choose Live Database Folder…
+        </button>
+        {liveDbFolder && (
+          <button type="button" className="filter-toggle" onClick={onClearFolder}>
+            Clear
           </button>
-          {liveDbFolder && (
-            <button type="button" className="filter-toggle" onClick={onClearFolder}>
-              Clear
-            </button>
-          )}
-          <button type="button" className="filter-toggle" onClick={onClose}>
-            Close
-          </button>
-        </div>
+        )}
+        <button type="button" className="filter-toggle" onClick={onClose}>
+          Close
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
