@@ -13,6 +13,7 @@ import { useScaleTags } from './hooks/useScaleTags';
 import { useFilteredProjects } from './hooks/useFilteredProjects';
 import { usePullScale } from './hooks/usePullScale';
 import { useVirtualizedRows } from './hooks/useVirtualizedRows';
+import { useLiveDbPath } from './hooks/useLiveDbPath';
 import { deriveDefaultFileName } from './lib/fileName';
 
 const columnHelper = createColumnHelper<AlsProject>();
@@ -27,6 +28,7 @@ export function AlsProjectList() {
     handleChooseFolder,
     upsertProjectFromResult,
   } = useProjectScan();
+  const { liveDbPath, chooseLiveDbFile } = useLiveDbPath();
   const [showCommonScales, setShowCommonScales] = useState(true);
   const [showExoticScales, setShowExoticScales] = useState(false);
   const [minCoveragePercent, setMinCoveragePercent] = useState(0);
@@ -68,6 +70,7 @@ export function AlsProjectList() {
             path={info.row.original.path}
             pinnedPaths={pinnedPaths}
             activeTags={activeTags}
+            liveDbPath={liveDbPath}
           />
         ),
       }),
@@ -150,6 +153,9 @@ export function AlsProjectList() {
         </p>
         <button type="button" className="folder-bar-change" onClick={chooseFolder}>
           Change Folder
+        </button>
+        <button type="button" className="folder-bar-change" onClick={chooseLiveDbFile} title={liveDbPath ?? undefined}>
+          {liveDbPath ? 'Live Database: Set' : 'Set Live Database…'}
         </button>
       </div>
       {error && <p className="error-text">{error}</p>}

@@ -62,3 +62,27 @@ It refuses (rather than creating `Backup/` or picking somewhere else) when
 that folder is missing or not writable, since either means this isn't a
 Live-managed project folder; the caller must not proceed to the real write
 if this fails.
+
+### categorize
+
+Derives a coarse `TrackCategory` (`Drums`, `Bass`, `Percussion`, `Vocals`,
+`Lead`, `Pads`, `Fx`, `Other`) for each track, naming-convention only (no
+audio analysis). `list_tracks` walks the document's top-level `<Tracks>`
+children and, per track, tries the Live Database first (via `livedb`, when
+a DB path is given) and falls through to `categorize_by_name` -- a
+case-insensitive substring match against a fixed keyword list, checked in
+a fixed priority order so e.g. "Bass Drums" resolves to `Drums` rather than
+`Bass`. Both matching functions are pure and have no I/O. `Other` is a
+first-class outcome, not an error.
+
+### livedb
+
+Looks up a sample filename's auto-tags in a local Ableton Live Database
+(`Live-files-*.db`), opened read-only, fresh per call. Tags are rows in
+`files` themselves (e.g. "Kick"), joined to a content file via the
+`keywords` table. Filename isn't a unique key in `files` -- a "Collect All
+and Save" copy gets its own row distinct from the original, and common
+sample-pack names collide across libraries -- so a lookup unions tags
+across every matching row rather than picking one arbitrarily. Never
+searches or guesses the DB path; an invalid/missing path is an error the
+caller (`categorize::list_tracks`) falls through on.
