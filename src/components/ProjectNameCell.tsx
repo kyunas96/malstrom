@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { openPath } from '@tauri-apps/plugin-opener';
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import { colorForTagIndex } from '../lib/tagColors';
 import type { ActiveScaleTag } from '../types/scaleFilter';
@@ -59,6 +59,13 @@ export function ProjectNameCell({
         onClick={() => openPath(path).catch((err) => console.error(err))}
       >
         Open in Ableton Live
+      </button>
+      <button
+        type="button"
+        className="open-in-live-button"
+        onClick={() => revealItemInDir(path).catch((err) => console.error(err))}
+      >
+        Show in Finder
       </button>
       <button type="button" className="open-in-live-button" onClick={loadTracks}>
         {tracks ? 'Hide Track Tags' : 'Show Track Tags'}
