@@ -184,7 +184,7 @@ button:active {
 
 .scales-card-header {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 200px 1fr;
   padding: 14px 24px;
   background: var(--panel-tint);
   border-bottom: 1px solid var(--border-subtle);
@@ -197,7 +197,7 @@ button:active {
 
 .scales-card-row {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 200px 1fr;
   padding: 20px 24px;
   border-bottom: 1px solid var(--hairline);
   text-align: left;
@@ -682,3 +682,4 @@ button:active {
 .pull-confirm-actions .filter-toggle {
   width: 100%;
 }
+

@@ -31,6 +31,12 @@ impl AlsInspector {
         Self { xml }
     }
 
+    /// The decompressed Live Set XML, e.g. for `mashup::build_mashup` to
+    /// splice tracks out of.
+    pub fn raw_xml(&self) -> &str {
+        &self.xml
+    }
+
     fn parse(&self) -> Result<Document<'_>> {
         Document::parse(&self.xml).map_err(|e| anyhow!("XML parse error: {}", e))
     }

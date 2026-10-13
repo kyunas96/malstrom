@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/kyunas96/malstrom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kyunas96/malstrom/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="status" src="https://img.shields.io/badge/status-v0.1-blue">
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey">
   <img alt="built with" src="https://img.shields.io/badge/built%20with-Tauri%20%2B%20React-24C8DB">
@@ -48,6 +49,42 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 - No packaged release — run from source (below)
 - Near-matches (a clip one or two notes off from a scale) aren't detected;
   only exact pitch-class matches count
+
+### Experimental
+
+Working on the backend, not yet in the UI, and verified against real
+Ableton Live rather than just unit tests:
+
+- **Mashup** (`src-tauri/src/als/mashup.rs`): splice selected tracks from
+  two `.als` projects into one new, valid Live Set. Exposed as the
+  `mashup_create` Tauri command.
+- **Dev CLIs** (`src-tauri/src/bin/`) that drive the real Live app via macOS
+  accessibility (`osascript`) to prove its output loads:
+  - `mashup_smoke_test <A.als> <B.als>` — mash up two files, open the result
+    in Live, report pass/fail
+  - `mashup_batch_test <dir> [report.jsonl]` — every pair across a whole
+    library, with a resumable JSONL report
+  - `als_upgrade <file-or-dir>` — have Live re-save older-version sets as
+    current-schema copies (unverified; expect rough edges)
+
+  Run with `cargo run --bin <name> -- <args>` from `src-tauri/`. They open
+  and force-quit Live, so don't run them with unsaved work open.
+
+## Technical highlights
+
+- `.als` files are gzipped XML; the Rust backend decompresses (`flate2`) and
+  parses (`roxmltree`) them, and writes changes back with a backup of the
+  original first.
+- Scale inference reduces every MIDI clip to its pitch-class set and scores
+  it against all scale/root combinations.
+- Scanning runs off the UI thread in parallel (`rayon`) so the app never
+  freezes on large libraries.
+- The table is virtualized (`@tanstack/react-virtual`) to stay smooth with
+  thousands of rows.
+- Tests at three layers: Rust integration tests, Vitest unit tests,
+  Playwright end-to-end tests.
+- Built with [Claude Code](https://claude.com/claude-code); `.claude/skills/`
+  holds the project-specific agent skills used during development.
 
 ## Getting started
 
@@ -101,6 +138,8 @@ extracted from a project and how scale candidates are scored.
       from their names — not yet surfaced in the UI
 - [ ] **Mashup**: filter projects down to a shared scale, select several of
       them, and get a picker of elements to pull from each into one new
+      project — backend works for 2 projects (see Experimental above), UI
+      in progress
 
 ## License
 

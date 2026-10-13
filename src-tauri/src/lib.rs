@@ -3,7 +3,7 @@
 pub mod als;
 mod commands;
 
-use commands::{apply_scale_to_project, list_projects, list_tracks};
+use commands::{apply_scale_to_project, list_projects, list_tracks, mashup_create};
 
 pub use commands::list_projects_in;
 
@@ -26,7 +26,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_projects,
             apply_scale_to_project,
-            list_tracks
+            list_tracks,
+            mashup_create
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

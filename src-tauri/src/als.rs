@@ -1,6 +1,7 @@
 pub mod categorize;
 pub mod inspector;
 pub mod livedb;
+pub mod mashup;
 pub mod output_path;
 pub mod scale_apply;
 pub mod scale_candidates;

@@ -19,19 +19,11 @@ export function useProjectScan() {
   const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleChooseFolder(onFolderChosen?: () => void) {
+  async function scan(root: string) {
     setError(null);
-    const selected = await open({
-      directory: true,
-      multiple: false,
-    });
-
-    if (typeof selected !== 'string') return;
-
-    setRootFolder(selected);
+    setRootFolder(root);
     setLoading(true);
     setProgress(null);
-    onFolderChosen?.();
 
     const unlisten = await listen<{ completed: number; total: number }>(
       'list-projects-progress',
@@ -40,7 +32,7 @@ export function useProjectScan() {
 
     try {
       const response = await invoke<AlsProject[]>('list_projects', {
-        rootPath: selected,
+        rootPath: root,
       });
       setProjects(response);
     } catch (err) {
@@ -50,6 +42,24 @@ export function useProjectScan() {
       setLoading(false);
       setProgress(null);
     }
+  }
+
+  async function handleChooseFolder(onFolderChosen?: () => void) {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+
+    if (typeof selected !== 'string') return;
+    onFolderChosen?.();
+    await scan(selected);
+  }
+
+  /** Re-scans the current root folder, e.g. after Mashup writes a new file
+   * into it -- picks the file up without asking the user to re-choose the
+   * folder they're already pointed at. */
+  function rescan() {
+    if (rootFolder) return scan(rootFolder);
   }
 
   function upsertProjectFromResult(updated: AlsProject) {
@@ -64,5 +74,6 @@ export function useProjectScan() {
     error,
     handleChooseFolder,
     upsertProjectFromResult,
+    rescan,
   };
 }

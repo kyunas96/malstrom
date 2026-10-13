@@ -5,6 +5,7 @@ use tauri::Emitter;
 
 use crate::als::categorize::TrackSummary;
 use crate::als::inspector::AlsInspector;
+use crate::als::mashup;
 use crate::als::output_path;
 use crate::als::scale_candidates::ScaleCandidate;
 use crate::als::scale_constants::{NOTE_NAMES, SCALE_NAMES};
@@ -179,6 +180,60 @@ pub async fn list_tracks(
             .unwrap_or_default();
         let inspector = AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
         inspector.extract_tracks(&candidates).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// One source project's path plus the positions of the tracks to pull from
+/// it, as picked in the Mashup v0 form's checklist -- indices into the same
+/// order `list_tracks` returns for that project.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MashupSourceInput {
+    pub path: String,
+    pub track_indices: Vec<usize>,
+}
+
+/// Builds a Mashup v0 output file: merges the checked tracks from exactly 2
+/// source projects into a new `.als` alongside `sources[0]`, which also
+/// donates tempo/time signature and the master/return tracks (documented
+/// limitation, not solved in v0). Never touches either source file.
+/// `file_name` is refused if it would collide with an existing file --
+/// same "ask for a different name" behavior as `apply_scale_to_project`.
+#[tauri::command]
+pub async fn mashup_create(sources: Vec<MashupSourceInput>, file_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if sources.len() != 2 {
+            return Err("Mashup v0 supports exactly 2 source projects".to_string());
+        }
+
+        let mashup_sources = sources
+            .iter()
+            .map(|s| {
+                let xml = AlsInspector::open(std::path::Path::new(&s.path))
+                    .map_err(|e| e.to_string())?
+                    .raw_xml()
+                    .to_string();
+                Ok(mashup::MashupSource {
+                    xml,
+                    track_indices: s.track_indices.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+
+        let merged_xml = mashup::build_mashup(&mashup_sources).map_err(|e| e.to_string())?;
+
+        let base_path = std::path::Path::new(&sources[0].path);
+        let dest_path = output_path::named_output_path(base_path, &file_name);
+        if dest_path.exists() {
+            return Err(format!(
+                "{} already exists — choose a different name.",
+                dest_path.display()
+            ));
+        }
+        output_path::write_als(&merged_xml, &dest_path).map_err(|e| e.to_string())?;
+        Ok(dest_path.to_string_lossy().to_string())
     })
     .await
     .map_err(|e| e.to_string())?

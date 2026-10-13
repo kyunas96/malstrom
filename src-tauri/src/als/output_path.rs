@@ -3,6 +3,44 @@ use std::path::{Path, PathBuf};
 
 const UNSAFE_FILENAME_CHARS: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 
+/// Subfolder name holding schema-upgraded copies of older-Live-version
+/// originals, placed next to them with the original filename unchanged
+/// (e.g. `MySong.als` -> `LIVE 12/MySong.als`) -- the same pattern as this
+/// module's own `Backup/` convention, just inverted: `LIVE 12/` holds the
+/// *preferred* copy, not a throwaway one. Shared between `als_upgrade`,
+/// which produces files here, and `mashup_batch_test`, which must prefer
+/// an upgraded copy over its stale original when both exist -- one
+/// constant so the two can't drift apart.
+pub const LIVE_12_UPGRADE_DIR: &str = "LIVE 12";
+
+/// Recursively collects every `.als` path under `root`, skipping any
+/// directory literally named `Backup` (case-insensitive) -- matches this
+/// module's own backup-path convention (`backup_before_overwrite`), so
+/// tools built on this never treat an old backed-up revision of a project
+/// as a distinct file from its current version. Shared by
+/// `mashup_batch_test` and `als_upgrade` so the walking/skipping rule can't
+/// drift between them.
+pub fn scan_als_files(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    scan_als_files_into(root, &mut out)?;
+    Ok(out)
+}
+
+fn scan_als_files_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            let is_backup = path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.eq_ignore_ascii_case("backup"));
+            if !is_backup {
+                scan_als_files_into(&path, out)?;
+            }
+        } else if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("als")) {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
 pub fn sanitize_for_filename(s: &str) -> String {
     s.chars()
         .map(|c| if UNSAFE_FILENAME_CHARS.contains(&c) { '-' } else { c })
@@ -43,7 +81,7 @@ pub fn derive_output_path(original: &Path, root_name: &str, scale_name: &str) ->
 /// to avoid a collision -- the name came from a confirmation dialog the user
 /// already saw, so saving over an existing file there is expected "save as"
 /// behavior, not a surprise.
-fn named_output_path(original: &Path, file_name: &str) -> PathBuf {
+pub fn named_output_path(original: &Path, file_name: &str) -> PathBuf {
     let dir = original.parent().unwrap_or_else(|| Path::new("."));
     let ext = original
         .extension()
