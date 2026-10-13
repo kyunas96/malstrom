@@ -52,8 +52,9 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 
 ### Experimental
 
-Working on the backend, not yet in the UI, and verified against real
-Ableton Live rather than just unit tests:
+Working on the backend, not yet in the UI. Checked by opening the output in
+Ableton Live, but only on a small sample of files from the current Live
+version. Projects saved in older Live versions haven't been tested.
 
 - **Mashup** (`src-tauri/src/als/mashup.rs`): splice selected tracks from
   two `.als` projects into one new, valid Live Set. Exposed as the
