@@ -32,4 +32,4 @@ docs/
 *.njsproj
 *.sln
 *.sw?
-smoke-mashup.sh
+*.sh
