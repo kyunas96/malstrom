@@ -144,3 +144,6 @@ extracted from a project and how scale candidates are scored.
 ## License
 
 [MIT](LICENSE.md)
+
+Malstrom is an independent project, not affiliated with or endorsed by
+Ableton. Ableton and Live are trademarks of Ableton AG.
