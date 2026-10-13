@@ -176,10 +176,21 @@ fn phase_b(merged: &str) -> anyhow::Result<String> {
     Ok(live_result)
 }
 
-/// Drives real Ableton Live the same way `mashup_smoke_test` does (see that
-/// file's `open_in_live_and_check` for the verified accessibility details),
-/// with two differences for unattended batch use: a patient timeout (Live's
-/// Plugin Scanner overhead is 15-90s per launch), and recognizing Live's own
+/// Drives real Ableton Live via `osascript`/System Events -- there is no
+/// headless mode, so this is the only way to get a genuine "did Live accept
+/// this file" answer. Returns `Ok(None)` on a clean open, `Ok(Some(message))`
+/// if Live raised a dialog, and `Err` if the check itself couldn't run (e.g.
+/// no Accessibility permission).
+///
+/// Tuned against one real Live 12 Suite install (verified by hand: the
+/// process is literally named "Live"; a corrupt-file alert's subrole is
+/// "AXDialog" with its message at `static text 1 of group 1` and an unnamed
+/// OK button at `button 1 of group 1`; System Events enumerates none of
+/// Live's windows until it's frontmost). Requires Accessibility (not just
+/// Automation) permission for whatever process runs this.
+///
+/// Tuned for unattended batch use: a patient timeout (Live's Plugin Scanner
+/// overhead is 15-90s per launch), and recognizing Live's own
 /// "unexpectedly quit ... recover your work?" dialog -- produced by the
 /// previous pair's force-kill, confirmed by hand -- as noise to dismiss
 /// ("No", since every merged file here is throwaway) rather than this

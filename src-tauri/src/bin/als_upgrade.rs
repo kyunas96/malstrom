@@ -13,10 +13,7 @@
 //! existence check doubles as resume support for free, so re-running the
 //! same command after an interruption just picks up where it left off.
 //!
-//! Plays the same "prove it on one real file first" role for the
-//! schema-upgrade idea that mashup_smoke_test played for the mashup
-//! feature. The Save As panel's
-//! accessibility structure below is unverified guesswork (no GUI in this
+//! The Save As panel's accessibility structure below is unverified guesswork (no GUI in this
 //! environment); expect at least one round of real-Live feedback before
 //! it's solid, same as that tool needed.
 

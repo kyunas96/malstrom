@@ -31,12 +31,3 @@ export function projectMatchesTags(
   const tagKeys = tags.map((t) => scaleKey(t.root_name, t.scale_name));
   return mode === 'any' ? tagKeys.some((k) => keys.has(k)) : tagKeys.every((k) => keys.has(k));
 }
-
-export function matchingTagsForProject(
-  project: AlsProject,
-  tags: ActiveScaleTag[],
-  minCoveragePercent: number,
-): ActiveScaleTag[] {
-  const keys = projectScaleKeys(project, minCoveragePercent);
-  return tags.filter((t) => keys.has(scaleKey(t.root_name, t.scale_name)));
-}

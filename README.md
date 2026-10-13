@@ -60,10 +60,9 @@ Ableton Live rather than just unit tests:
   `mashup_create` Tauri command.
 - **Dev CLIs** (`src-tauri/src/bin/`) that drive the real Live app via macOS
   accessibility (`osascript`) to prove its output loads:
-  - `mashup_smoke_test <A.als> <B.als>` — mash up two files, open the result
-    in Live, report pass/fail
-  - `mashup_batch_test <dir> [report.jsonl]` — every pair across a whole
-    library, with a resumable JSONL report
+  - `mashup_batch_test <dir> [report.jsonl]` — mash up every pair of
+    projects in a folder, open each result in Live, and log pass/fail to a
+    resumable JSONL report
   - `als_upgrade <file-or-dir>` — have Live re-save older-version sets as
     current-schema copies (unverified; expect rough edges)
 

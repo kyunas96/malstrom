@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dummyAlsProjects } from '../fixtures/alsProjects';
-import { matchingTagsForProject, projectMatchesTags, scaleKey } from './scaleCompatibility';
+import { projectMatchesTags, scaleKey } from './scaleCompatibility';
 import type { ActiveScaleTag } from '../types/scaleFilter';
 
 const sunsetDrive = dummyAlsProjects.find((p) => p.name === 'Sunset Drive')!;
@@ -45,13 +45,5 @@ describe('projectMatchesTags', () => {
   it('empty tags array matches everything', () => {
     expect(projectMatchesTags(glassCorridor, [], 'any', 0)).toBe(true);
     expect(projectMatchesTags(glassCorridor, [], 'all', 0)).toBe(true);
-  });
-});
-
-describe('matchingTagsForProject', () => {
-  it('returns only the subset of tags a project matches', () => {
-    const tags = [tag('C', 'Major', sunsetDrive.path), tag('B', 'Minor Pentatonic', glassCorridor.path)];
-    expect(matchingTagsForProject(sunsetDrive, tags, 0)).toEqual([tags[0]]);
-    expect(matchingTagsForProject(glassCorridor, tags, 0)).toEqual([tags[1]]);
   });
 });

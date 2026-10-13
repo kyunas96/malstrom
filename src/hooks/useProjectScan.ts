@@ -55,13 +55,6 @@ export function useProjectScan() {
     await scan(selected);
   }
 
-  /** Re-scans the current root folder, e.g. after Mashup writes a new file
-   * into it -- picks the file up without asking the user to re-choose the
-   * folder they're already pointed at. */
-  function rescan() {
-    if (rootFolder) return scan(rootFolder);
-  }
-
   function upsertProjectFromResult(updated: AlsProject) {
     setProjects((prev) => upsertProject(prev, updated));
   }
@@ -74,6 +67,5 @@ export function useProjectScan() {
     error,
     handleChooseFolder,
     upsertProjectFromResult,
-    rescan,
   };
 }

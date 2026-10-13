@@ -213,7 +213,7 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
 /// every invariant here is one that Live's own loader has actually
 /// rejected during this project's development, so a clean result is
 /// necessary but not sufficient proof the file opens cleanly. Shared
-/// between `mashup.rs`'s own tests and the `mashup_smoke_test` CLI so both
+/// between `mashup.rs`'s own tests and the `mashup_batch_test` CLI so both
 /// check exactly the same things.
 pub mod diagnostics {
     use super::{max_referenced_id, Document};
