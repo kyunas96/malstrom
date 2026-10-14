@@ -1,7 +1,8 @@
 use rayon::prelude::*;
 use serde::Serialize;
+use serde_json::Value;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::als::categorize::TrackSummary;
 use crate::als::inspector::AlsInspector;
@@ -9,6 +10,7 @@ use crate::als::mashup;
 use crate::als::output_path;
 use crate::als::scale_candidates::ScaleCandidate;
 use crate::als::scale_constants::{NOTE_NAMES, SCALE_NAMES};
+use crate::store::{self, StoreLock};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AlsProjectSummary {
@@ -237,6 +239,50 @@ pub async fn mashup_create(sources: Vec<MashupSourceInput>, file_name: String) -
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Reads `store.json[namespace][key]`, or `None` if either is absent.
+#[tauri::command]
+pub async fn store_get(
+    app: AppHandle,
+    state: State<'_, StoreLock>,
+    namespace: String,
+    key: String,
+) -> Result<Option<Value>, String> {
+    let _guard = state.0.lock().await;
+    let data = store::read(&app);
+    Ok(data.get(&namespace).and_then(|ns| ns.get(&key)).cloned())
+}
+
+/// Writes `store.json[namespace][key] = value`, creating the namespace if
+/// it doesn't exist yet.
+#[tauri::command]
+pub async fn store_set(
+    app: AppHandle,
+    state: State<'_, StoreLock>,
+    namespace: String,
+    key: String,
+    value: Value,
+) -> Result<(), String> {
+    let _guard = state.0.lock().await;
+    let mut data = store::read(&app);
+    store::set(&mut data, namespace, key, value)?;
+    store::write(&app, &data).map_err(|e| e.to_string())
+}
+
+/// Removes `store.json[namespace][key]`. Prunes `namespace` too if that
+/// was its last entry, rather than leaving a dangling empty object.
+#[tauri::command]
+pub async fn store_remove(
+    app: AppHandle,
+    state: State<'_, StoreLock>,
+    namespace: String,
+    key: String,
+) -> Result<(), String> {
+    let _guard = state.0.lock().await;
+    let mut data = store::read(&app);
+    store::remove(&mut data, &namespace, &key);
+    store::write(&app, &data).map_err(|e| e.to_string())
 }
 
 pub fn list_projects_in(root_path: String) -> Result<Vec<AlsProjectSummary>, String> {
