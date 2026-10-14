@@ -197,7 +197,7 @@ pub struct MashupSourceInput {
 
 /// Builds a Mashup v0 output file: merges the checked tracks from exactly 2
 /// source projects into a new `.als` alongside `sources[0]`, which also
-/// donates tempo/time signature and the master/return tracks (documented
+/// donates tempo/time signature and the master track (documented
 /// limitation, not solved in v0). Never touches either source file.
 /// `file_name` is refused if it would collide with an existing file --
 /// same "ask for a different name" behavior as `apply_scale_to_project`.
