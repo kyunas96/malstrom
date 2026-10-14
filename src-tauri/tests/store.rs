@@ -1,31 +1,12 @@
-use malstrom_lib::store::{read_from, write_to};
+use malstrom_lib::store::{read_from, remove, set, write_to};
 use serde_json::{Map, Value};
 use std::fs;
 
 fn temp_store_path(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "malstrom-store-test-{name}-{}",
-        std::process::id()
-    ));
+    let dir =
+        std::env::temp_dir().join(format!("malstrom-store-test-{name}-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     dir.join("store.json")
-}
-
-fn set(data: &mut Map<String, Value>, namespace: &str, key: &str, value: Value) {
-    data.entry(namespace.to_string())
-        .or_insert_with(|| Value::Object(Map::new()))
-        .as_object_mut()
-        .unwrap()
-        .insert(key.to_string(), value);
-}
-
-fn remove(data: &mut Map<String, Value>, namespace: &str, key: &str) {
-    if let Some(ns) = data.get_mut(namespace).and_then(|ns| ns.as_object_mut()) {
-        ns.remove(key);
-        if ns.is_empty() {
-            data.remove(namespace);
-        }
-    }
 }
 
 #[test]
@@ -46,7 +27,11 @@ fn corrupt_file_reads_as_empty_and_is_backed_up() {
     let backups: Vec<_> = fs::read_dir(dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().starts_with("store.json.bak-"))
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("store.json.bak-")
+        })
         .collect();
     assert_eq!(backups.len(), 1);
     assert!(!path.exists());
@@ -57,7 +42,13 @@ fn round_trips_a_value_through_set_get_remove() {
     let path = temp_store_path("roundtrip");
 
     let mut data = read_from(&path);
-    set(&mut data, "trackCategoryOverrides", "track-1", Value::String("Drums".into()));
+    set(
+        &mut data,
+        "trackCategoryOverrides".into(),
+        "track-1".into(),
+        Value::String("Drums".into()),
+    )
+    .unwrap();
     write_to(&path, &data).unwrap();
 
     let data = read_from(&path);
@@ -73,4 +64,20 @@ fn round_trips_a_value_through_set_get_remove() {
     // Emptied namespace is pruned, not left as a dangling {}.
     let data = read_from(&path);
     assert!(!data.contains_key("trackCategoryOverrides"));
+}
+
+#[test]
+fn set_into_non_object_namespace_errors_instead_of_panicking() {
+    let mut data = Map::new();
+    data.insert("trackCategoryOverrides".into(), Value::from(5));
+
+    let result = set(
+        &mut data,
+        "trackCategoryOverrides".into(),
+        "track-1".into(),
+        Value::String("Drums".into()),
+    );
+
+    assert!(result.is_err());
+    assert_eq!(data["trackCategoryOverrides"], Value::from(5));
 }

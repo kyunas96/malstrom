@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
@@ -266,11 +266,7 @@ pub async fn store_set(
 ) -> Result<(), String> {
     let _guard = state.0.lock().await;
     let mut data = store::read(&app);
-    data.entry(namespace)
-        .or_insert_with(|| Value::Object(Map::new()))
-        .as_object_mut()
-        .expect("namespace entries are always objects")
-        .insert(key, value);
+    store::set(&mut data, namespace, key, value)?;
     store::write(&app, &data).map_err(|e| e.to_string())
 }
 
@@ -285,12 +281,7 @@ pub async fn store_remove(
 ) -> Result<(), String> {
     let _guard = state.0.lock().await;
     let mut data = store::read(&app);
-    if let Some(ns) = data.get_mut(&namespace).and_then(|ns| ns.as_object_mut()) {
-        ns.remove(&key);
-        if ns.is_empty() {
-            data.remove(&namespace);
-        }
-    }
+    store::remove(&mut data, &namespace, &key);
     store::write(&app, &data).map_err(|e| e.to_string())
 }
 

@@ -61,5 +61,35 @@ pub fn write_to(path: &std::path::Path, data: &Map<String, Value>) -> std::io::R
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, serde_json::to_vec_pretty(data)?)
+    // Write-then-rename so a crash mid-write can't leave a truncated store.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_vec_pretty(data)?)?;
+    std::fs::rename(tmp, path)
+}
+
+/// Sets `data[namespace][key] = value`, creating the namespace if it doesn't
+/// exist yet. Errors if the namespace holds a non-object (e.g. a hand edit).
+pub fn set(
+    data: &mut Map<String, Value>,
+    namespace: String,
+    key: String,
+    value: Value,
+) -> Result<(), String> {
+    data.entry(namespace)
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .ok_or("store namespace is not an object")?
+        .insert(key, value);
+    Ok(())
+}
+
+/// Removes `data[namespace][key]`. Prunes `namespace` too if that was its
+/// last entry, rather than leaving a dangling empty object.
+pub fn remove(data: &mut Map<String, Value>, namespace: &str, key: &str) {
+    if let Some(ns) = data.get_mut(namespace).and_then(|ns| ns.as_object_mut()) {
+        ns.remove(key);
+        if ns.is_empty() {
+            data.remove(namespace);
+        }
+    }
 }
