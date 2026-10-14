@@ -133,6 +133,9 @@ The `.als` parsing and scale-scoring logic lives in `src-tauri/src/als/` —
 see its [README](src-tauri/src/als/README.md) for how scale information is
 extracted from a project and how scale candidates are scored.
 
+For how each feature was designed and what I learned building it, see the
+[design docs](docs/README.md).
+
 ## Roadmap
 
 - [x] Scan MIDI clips in a project and determine every scale they're

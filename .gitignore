@@ -12,9 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Scratch planning docs (PRDs/specs) — temporary, fold into a README
-# next to the code before merging if anything's still worth keeping.
-docs/
+# Private drafts for future issues; published design docs live in docs/.
+notes/
 
 # Playwright
 /test-results/
