@@ -1,6 +1,5 @@
 //! App-owned key/value storage for data about Live projects (starting with
 //! track category overrides) without touching the source `.als` file.
-//! See notes/app-overlay-storage-spec.md.
 
 use std::path::PathBuf;
 
@@ -32,14 +31,16 @@ pub fn read(app: &AppHandle) -> Map<String, Value> {
 }
 
 pub fn read_from(path: &std::path::Path) -> Map<String, Value> {
-    let contents = match std::fs::read_to_string(path) {
+    // Bytes, not a String: invalid UTF-8 must hit the corrupt/backup path
+    // below, not be mistaken for a missing file and overwritten.
+    let contents = match std::fs::read(path) {
         Ok(contents) => contents,
         Err(_) => return Map::new(),
     };
-    if contents.trim().is_empty() {
+    if contents.trim_ascii().is_empty() {
         return Map::new();
     }
-    match serde_json::from_str(&contents) {
+    match serde_json::from_slice(&contents) {
         Ok(Value::Object(map)) => map,
         _ => {
             let timestamp = std::time::SystemTime::now()

@@ -81,3 +81,22 @@ fn set_into_non_object_namespace_errors_instead_of_panicking() {
     assert!(result.is_err());
     assert_eq!(data["trackCategoryOverrides"], Value::from(5));
 }
+
+#[test]
+fn invalid_utf8_file_is_backed_up_not_clobbered() {
+    let path = temp_store_path("utf8");
+    fs::write(&path, [0xff, 0xfe, 0x00]).unwrap();
+
+    assert_eq!(read_from(&path), Map::new());
+
+    let backed_up = fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .any(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("store.json.bak-")
+        });
+    assert!(backed_up);
+    assert!(!path.exists());
+}
