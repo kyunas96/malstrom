@@ -42,7 +42,9 @@ fn return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<Node<'a, '
 fn mixer_sends<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a, 'input>> {
     ["DeviceChain", "Mixer", "Sends"]
         .iter()
-        .try_fold(track, |node, tag| node.children().find(|c| c.tag_name().name() == *tag))
+        .try_fold(track, |node, tag| {
+            node.children().find(|c| c.tag_name().name() == *tag)
+        })
 }
 
 /// The first send holder on any track in `doc`, as indented XML, to clone
@@ -50,7 +52,9 @@ fn mixer_sends<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a, 'input>> 
 /// format instead of a hard-coded one. `None` when no track has a send,
 /// i.e. the project has no return tracks.
 fn first_send_holder(doc: &Document, xml: &str) -> Option<String> {
-    let tracks_node = doc.descendants().find(|n| n.tag_name().name() == "Tracks")?;
+    let tracks_node = doc
+        .descendants()
+        .find(|n| n.tag_name().name() == "Tracks")?;
     tracks_node
         .children()
         .filter_map(mixer_sends)
@@ -63,7 +67,8 @@ fn first_send_holder(doc: &Document, xml: &str) -> Option<String> {
 /// in the merged set. "Down" is the send's own `MidiControllerRange/Min`
 /// (-70 dB in Live 12), which is what Live itself stores for an unused send.
 fn padding_send_holder(template: &str, next_id: &mut u64) -> Result<String> {
-    let doc = Document::parse(template).map_err(|e| anyhow!("XML parse error in send template: {e}"))?;
+    let doc =
+        Document::parse(template).map_err(|e| anyhow!("XML parse error in send template: {e}"))?;
     let send = doc
         .root_element()
         .children()
@@ -97,9 +102,12 @@ fn padding_send_holder(template: &str, next_id: &mut u64) -> Result<String> {
 fn insert_children(xml: &str, node: &Node, prepend: &str, append: &str) -> Result<String> {
     let start = node.range().start;
     let open_end = start
-        + xml[start..]
-            .find('>')
-            .ok_or_else(|| anyhow!("Internal error: malformed <{}> element", node.tag_name().name()))?
+        + xml[start..].find('>').ok_or_else(|| {
+            anyhow!(
+                "Internal error: malformed <{}> element",
+                node.tag_name().name()
+            )
+        })?
         + 1;
     let mut out = String::with_capacity(xml.len() + prepend.len() + append.len());
     if xml[..open_end].ends_with("/>") {
@@ -108,7 +116,9 @@ fn insert_children(xml: &str, node: &Node, prepend: &str, append: &str) -> Resul
         out.push_str(&xml[open_end..]);
         return Ok(out);
     }
-    let append_at = node.last_element_child().map_or(open_end, |c| c.range().end);
+    let append_at = node
+        .last_element_child()
+        .map_or(open_end, |c| c.range().end);
     out.push_str(&xml[..open_end]);
     out.push_str(prepend);
     out.push_str(&xml[open_end..append_at]);
@@ -131,13 +141,17 @@ fn pad_track_sends(
     if before + after == 0 {
         return Ok(block.to_string());
     }
-    let doc = Document::parse(block).map_err(|e| anyhow!("XML parse error while padding sends: {e}"))?;
+    let doc =
+        Document::parse(block).map_err(|e| anyhow!("XML parse error while padding sends: {e}"))?;
     let Some(sends) = mixer_sends(doc.root_element()) else {
         return Ok(block.to_string());
     };
-    let template = template.ok_or_else(|| anyhow!("Internal error: no send holder to pad sends with"))?;
+    let template =
+        template.ok_or_else(|| anyhow!("Internal error: no send holder to pad sends with"))?;
     let mut holders = |count: usize| -> Result<String> {
-        (0..count).map(|_| padding_send_holder(template, next_id)).collect()
+        (0..count)
+            .map(|_| padding_send_holder(template, next_id))
+            .collect()
     };
     let prepend = holders(before)?;
     let append = holders(after)?;
@@ -150,7 +164,10 @@ fn pad_track_sends(
 fn append_sends_pre(merged: &mut String, extra: &str) -> Result<()> {
     let updated = {
         let doc = Document::parse(merged).map_err(|e| anyhow!("XML parse error: {e}"))?;
-        let Some(sends_pre) = doc.descendants().find(|n| n.tag_name().name() == "SendsPre") else {
+        let Some(sends_pre) = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "SendsPre")
+        else {
             return Ok(());
         };
         insert_children(merged, &sends_pre, "", extra)?
@@ -215,7 +232,8 @@ fn apply_attribute_edits(xml: &str, mut edits: Vec<(std::ops::Range<usize>, Stri
 /// never touched, so their grooves (valid against the base's own retained
 /// pool) survive as-is.
 fn strip_groove_references(block: &str) -> Result<String> {
-    let doc = Document::parse(block).map_err(|e| anyhow!("XML parse error while stripping grooves: {e}"))?;
+    let doc = Document::parse(block)
+        .map_err(|e| anyhow!("XML parse error while stripping grooves: {e}"))?;
     let edits: Vec<(std::ops::Range<usize>, String)> = doc
         .descendants()
         .filter(|n| n.tag_name().name() == "GrooveId")
@@ -241,13 +259,15 @@ fn shift_ids_in_block(block: &str, offset: u64) -> Result<String> {
     if offset == 0 {
         return Ok(block.to_string());
     }
-    let doc = Document::parse(block).map_err(|e| anyhow!("XML parse error while remapping ids: {e}"))?;
+    let doc =
+        Document::parse(block).map_err(|e| anyhow!("XML parse error while remapping ids: {e}"))?;
     let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
     for n in doc.descendants() {
         let tag_ends_in_id = n.tag_name().name().ends_with("Id");
         for attr in n.attributes() {
             let relevant = attr.name() == "Id" || (tag_ends_in_id && attr.name() == "Value");
-            let Some(original) = relevant.then(|| attr.value().parse::<u64>().ok()).flatten() else {
+            let Some(original) = relevant.then(|| attr.value().parse::<u64>().ok()).flatten()
+            else {
                 continue;
             };
             edits.push((attr.range_value(), (original + offset).to_string()));
@@ -263,7 +283,10 @@ fn shift_ids_in_block(block: &str, offset: u64) -> Result<String> {
 /// value already clears the new high-water mark.
 fn ensure_next_pointee_id_is_high_enough(merged: &mut String) -> Result<()> {
     let doc = Document::parse(merged).map_err(|e| anyhow!("XML parse error: {e}"))?;
-    let Some(node) = doc.descendants().find(|n| n.tag_name().name() == "NextPointeeId") else {
+    let Some(node) = doc
+        .descendants()
+        .find(|n| n.tag_name().name() == "NextPointeeId")
+    else {
         return Ok(());
     };
     let Some(current) = node.attribute("Value").and_then(|v| v.parse::<u64>().ok()) else {
@@ -279,8 +302,11 @@ fn ensure_next_pointee_id_is_high_enough(merged: &mut String) -> Result<()> {
         + merged[tag_start..]
             .find('>')
             .ok_or_else(|| anyhow!("Internal error: malformed NextPointeeId element"))?;
-    let rewritten =
-        merged[tag_start..tag_end].replacen(&format!("Value=\"{current}\""), &format!("Value=\"{needed}\""), 1);
+    let rewritten = merged[tag_start..tag_end].replacen(
+        &format!("Value=\"{current}\""),
+        &format!("Value=\"{needed}\""),
+        1,
+    );
     merged.replace_range(tag_start..tag_end, &rewritten);
     Ok(())
 }
@@ -313,7 +339,9 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
     // own highest id, so nothing in them can collide with it. v0 caps
     // sources at exactly 2, so there's only ever one donor to shift.
     let base_max_id = max_referenced_id(base_doc);
-    let offsets: Vec<u64> = (0..sources.len()).map(|i| if i == 0 { 0 } else { base_max_id + 1 }).collect();
+    let offsets: Vec<u64> = (0..sources.len())
+        .map(|i| if i == 0 { 0 } else { base_max_id + 1 })
+        .collect();
 
     // Padding sends need ids of their own, above everything any source
     // occupies once shifted.
@@ -324,7 +352,10 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
         .max()
         .unwrap_or(0)
         + 1;
-    let send_template = docs.iter().zip(sources).find_map(|(doc, s)| first_send_holder(doc, &s.xml));
+    let send_template = docs
+        .iter()
+        .zip(sources)
+        .find_map(|(doc, s)| first_send_holder(doc, &s.xml));
     let return_counts = docs
         .iter()
         .map(|doc| return_tracks(doc).map(|r| r.len()))
@@ -346,9 +377,19 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
 
         let mut prepare = |node: Node| -> Result<String> {
             let block = block_with_indent(&source.xml, &node);
-            let block = if offset > 0 { strip_groove_references(&block)? } else { block };
+            let block = if offset > 0 {
+                strip_groove_references(&block)?
+            } else {
+                block
+            };
             let block = shift_ids_in_block(&block, offset)?;
-            pad_track_sends(&block, before, after, send_template.as_deref(), &mut next_id)
+            pad_track_sends(
+                &block,
+                before,
+                after,
+                send_template.as_deref(),
+                &mut next_id,
+            )
         };
 
         let tracks = non_return_tracks(doc)?;
@@ -363,10 +404,16 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
         }
 
         if offset > 0 {
-            if let Some(sends_pre) = doc.descendants().find(|n| n.tag_name().name() == "SendsPre") {
+            if let Some(sends_pre) = doc
+                .descendants()
+                .find(|n| n.tag_name().name() == "SendsPre")
+            {
                 for flag in sends_pre.children().filter(|n| n.is_element()) {
                     donor_sends_pre.push('\n');
-                    donor_sends_pre.push_str(&shift_ids_in_block(&block_with_indent(&source.xml, &flag), offset)?);
+                    donor_sends_pre.push_str(&shift_ids_in_block(
+                        &block_with_indent(&source.xml, &flag),
+                        offset,
+                    )?);
                 }
             }
         }
@@ -383,8 +430,9 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
 
     // Byte-range splice, not a re-serialization -- verify it's still
     // well-formed before any caller writes it to disk.
-    Document::parse(&merged)
-        .map_err(|e| anyhow!("Internal error: merged XML failed to re-parse ({e}), refusing to write"))?;
+    Document::parse(&merged).map_err(|e| {
+        anyhow!("Internal error: merged XML failed to re-parse ({e}), refusing to write")
+    })?;
 
     Ok(merged)
 }
@@ -451,10 +499,15 @@ pub mod diagnostics {
                     }
                 }
             }
-            if let Some(sends_pre) = doc.descendants().find(|n| n.tag_name().name() == "SendsPre") {
+            if let Some(sends_pre) = doc
+                .descendants()
+                .find(|n| n.tag_name().name() == "SendsPre")
+            {
                 let count = sends_pre.children().filter(|n| n.is_element()).count();
                 if count != return_count {
-                    problems.push(format!("SendsPre has {count} entries but the set has {return_count} return tracks"));
+                    problems.push(format!(
+                        "SendsPre has {count} entries but the set has {return_count} return tracks"
+                    ));
                 }
             }
         }
@@ -467,7 +520,9 @@ pub mod diagnostics {
         {
             let needed = max_referenced_id(&doc) + 1;
             if current < needed {
-                problems.push(format!("NextPointeeId ({current}) is too low; must be at least {needed}"));
+                problems.push(format!(
+                    "NextPointeeId ({current}) is too low; must be at least {needed}"
+                ));
             }
         }
 

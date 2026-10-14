@@ -29,17 +29,35 @@ fn merges_selected_tracks_from_both_sources_and_keeps_base_metadata() {
     let b_xml = project_xml(&format!("{}{}", midi_track("Lead B"), midi_track("Pads B")));
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![1] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![1],
+        },
     ])
     .unwrap();
 
     assert!(merged.contains("Drums A"));
-    assert!(!merged.contains("Bass A"), "unselected track from source A leaked in");
+    assert!(
+        !merged.contains("Bass A"),
+        "unselected track from source A leaked in"
+    );
     assert!(merged.contains("Pads B"));
-    assert!(!merged.contains("Lead B"), "unselected track from source B leaked in");
-    assert!(merged.contains("A-Reverb"), "base project's return track should carry over");
-    assert!(merged.contains("<Tempo>120</Tempo>"), "base project's tempo should carry over");
+    assert!(
+        !merged.contains("Lead B"),
+        "unselected track from source B leaked in"
+    );
+    assert!(
+        merged.contains("A-Reverb"),
+        "base project's return track should carry over"
+    );
+    assert!(
+        merged.contains("<Tempo>120</Tempo>"),
+        "base project's tempo should carry over"
+    );
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 }
@@ -51,17 +69,28 @@ fn shifts_every_id_in_a_donor_track_s_subtree_not_just_its_own() {
     // of the real "non-unique Pointee IDs" failure, one level deeper than
     // the top-level track Id.
     let a_xml = project_xml(&midi_track("Drums A"));
-    let b_xml = project_xml(r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain></MidiTrack>"#);
+    let b_xml = project_xml(
+        r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain></MidiTrack>"#,
+    );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
     // Source A's own Ids are the base document's -- never rewritten.
-    assert!(merged.contains(r#"<MidiTrack Id="1">"#), "base source's track Id should be untouched");
+    assert!(
+        merged.contains(r#"<MidiTrack Id="1">"#),
+        "base source's track Id should be untouched"
+    );
     assert!(
         !merged.contains(r#"<PluginDevice Id="7" />"#),
         "source B's nested device Id should have been shifted, not left colliding with source A's id space"
@@ -74,11 +103,19 @@ fn shifted_pointee_references_still_resolve_to_their_shifted_target() {
     // must move by the same offset as the device it targets, or the
     // reference dangles once the ids are remapped.
     let a_xml = project_xml(&midi_track("Drums A"));
-    let b_xml = project_xml(r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain><AutomationEnvelopes><AutomationEnvelope Id="8"><EnvelopeTarget><PointeeId Value="7" /></EnvelopeTarget></AutomationEnvelope></AutomationEnvelopes></MidiTrack>"#);
+    let b_xml = project_xml(
+        r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain><AutomationEnvelopes><AutomationEnvelope Id="8"><EnvelopeTarget><PointeeId Value="7" /></EnvelopeTarget></AutomationEnvelope></AutomationEnvelopes></MidiTrack>"#,
+    );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -94,7 +131,10 @@ fn shifted_pointee_references_still_resolve_to_their_shifted_target() {
         .find(|n| n.tag_name().name() == "PointeeId")
         .and_then(|n| n.attribute("Value"))
         .unwrap();
-    assert_eq!(device_id, pointee_value, "PointeeId must still point at its shifted target");
+    assert_eq!(
+        device_id, pointee_value,
+        "PointeeId must still point at its shifted target"
+    );
 }
 
 #[test]
@@ -103,11 +143,19 @@ fn raises_next_pointee_id_above_every_id_brought_in_from_either_source() {
     // carries a device Id far above it -- exactly what triggered Live's
     // real "NextPointeeId is too low: X must be bigger than Y" error.
     let a_xml = project_xml_with_next_pointee_id(&midi_track("Drums A"), 100);
-    let b_xml = project_xml(r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="26192" /></Devices></DeviceChain></MidiTrack>"#);
+    let b_xml = project_xml(
+        r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="26192" /></Devices></DeviceChain></MidiTrack>"#,
+    );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -134,11 +182,19 @@ fn drops_donor_groove_references_instead_of_leaving_them_dangling() {
     // GrooveId Value=...) confirmed against a real project's decompressed
     // XML -- a clip references a groove this way, not via `<Groove Id=..>`.
     let a_xml = project_xml(&midi_track("Drums A"));
-    let b_xml = project_xml(r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#);
+    let b_xml = project_xml(
+        r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#,
+    );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -148,16 +204,25 @@ fn drops_donor_groove_references_instead_of_leaving_them_dangling() {
         .find(|n| n.tag_name().name() == "GrooveId")
         .and_then(|n| n.attribute("Value"))
         .unwrap();
-    assert_eq!(groove_id, "-1", "donor track's groove reference should be cleared, not shifted");
+    assert_eq!(
+        groove_id, "-1",
+        "donor track's groove reference should be cleared, not shifted"
+    );
 }
 
 /// Base-project tracks keep whatever groove they had -- it's valid against
 /// the base document's own retained GroovePool, never touched by this merge.
 #[test]
 fn base_project_s_own_groove_references_are_left_alone() {
-    let a_xml = project_xml(r#"<MidiTrack Id="1"><Name><EffectiveName Value="Drums A" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#);
+    let a_xml = project_xml(
+        r#"<MidiTrack Id="1"><Name><EffectiveName Value="Drums A" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#,
+    );
 
-    let merged = build_mashup(&[MashupSource { xml: a_xml, track_indices: vec![0] }]).unwrap();
+    let merged = build_mashup(&[MashupSource {
+        xml: a_xml,
+        track_indices: vec![0],
+    }])
+    .unwrap();
 
     assert!(
         merged.contains(r#"<GrooveId Value="3" />"#),
@@ -173,11 +238,19 @@ fn next_pointee_id_does_not_need_to_exceed_its_own_value() {
     // can never be satisfied; diagnostics::check must not flag a correctly
     // updated NextPointeeId as still "too low" against itself.
     let a_xml = project_xml_with_next_pointee_id(&midi_track("Drums A"), 100);
-    let b_xml = project_xml(r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name></MidiTrack>"#);
+    let b_xml = project_xml(
+        r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name></MidiTrack>"#,
+    );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -198,7 +271,11 @@ fn diagnostics_does_not_flag_legitimate_reuse_of_id_outside_the_tracks_list() {
         r#"<ReturnTrack Id="9"><DeviceChain><ClipSlot Id="42" /></DeviceChain><Automation><ClipSlot Id="42" /></Automation></ReturnTrack>"#,
     ));
 
-    let merged = build_mashup(&[MashupSource { xml: a_xml, track_indices: vec![0] }]).unwrap();
+    let merged = build_mashup(&[MashupSource {
+        xml: a_xml,
+        track_indices: vec![0],
+    }])
+    .unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 }
@@ -206,7 +283,11 @@ fn diagnostics_does_not_flag_legitimate_reuse_of_id_outside_the_tracks_list() {
 #[test]
 fn out_of_range_index_errors_instead_of_panicking() {
     let a_xml = project_xml(&midi_track("Only Track"));
-    let err = build_mashup(&[MashupSource { xml: a_xml, track_indices: vec![5] }]).unwrap_err();
+    let err = build_mashup(&[MashupSource {
+        xml: a_xml,
+        track_indices: vec![5],
+    }])
+    .unwrap_err();
     assert!(err.to_string().contains("out of range"));
 }
 
@@ -222,18 +303,32 @@ fn send_holder(id: usize, value: &str, target_id: usize) -> String {
 
 /// A track whose mixer sends hold `values`, one per return in its project.
 /// `first_target_id` keeps the automation-target ids distinct per track.
-fn track_with_sends(tag: &str, id: usize, name: &str, values: &[&str], first_target_id: usize) -> String {
+fn track_with_sends(
+    tag: &str,
+    id: usize,
+    name: &str,
+    values: &[&str],
+    first_target_id: usize,
+) -> String {
     let holders: String = values
         .iter()
         .enumerate()
         .map(|(i, v)| send_holder(i, v, first_target_id + i * 2))
         .collect();
-    let sends = if holders.is_empty() { "<Sends />".to_string() } else { format!("<Sends>{holders}</Sends>") };
-    format!(r#"<{tag} Id="{id}"><Name><EffectiveName Value="{name}" /></Name><DeviceChain><Mixer>{sends}</Mixer></DeviceChain></{tag}>"#)
+    let sends = if holders.is_empty() {
+        "<Sends />".to_string()
+    } else {
+        format!("<Sends>{holders}</Sends>")
+    };
+    format!(
+        r#"<{tag} Id="{id}"><Name><EffectiveName Value="{name}" /></Name><DeviceChain><Mixer>{sends}</Mixer></DeviceChain></{tag}>"#
+    )
 }
 
 fn project_xml_with_sends_pre(tracks: &str, return_count: usize) -> String {
-    let flags: String = (0..return_count).map(|i| format!(r#"<SendPreBool Id="{i}" Value="true" />"#)).collect();
+    let flags: String = (0..return_count)
+        .map(|i| format!(r#"<SendPreBool Id="{i}" Value="true" />"#))
+        .collect();
     format!(
         r#"<Ableton MajorVersion="5"><LiveSet><Tempo>120</Tempo><NextPointeeId Value="1000" /><Tracks>{tracks}</Tracks><SendsPre>{flags}</SendsPre></LiveSet></Ableton>"#
     )
@@ -251,7 +346,8 @@ fn send_values(merged: &str, track_name: &str) -> Vec<String> {
         .find(|n| {
             n.children().any(|c| {
                 c.tag_name().name() == "Name"
-                    && c.first_element_child().and_then(|e| e.attribute("Value")) == Some(track_name)
+                    && c.first_element_child().and_then(|e| e.attribute("Value"))
+                        == Some(track_name)
             })
         })
         .unwrap_or_else(|| panic!("no track named {track_name}"));
@@ -259,7 +355,12 @@ fn send_values(merged: &str, track_name: &str) -> Vec<String> {
     sends
         .children()
         .filter(|n| n.is_element())
-        .map(|holder| child(child(holder, "Send"), "Manual").attribute("Value").unwrap().to_string())
+        .map(|holder| {
+            child(child(holder, "Send"), "Manual")
+                .attribute("Value")
+                .unwrap()
+                .to_string()
+        })
         .collect()
 }
 
@@ -289,8 +390,14 @@ fn donor_returns_are_appended_and_every_track_s_sends_still_reach_its_own_return
     );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -300,14 +407,23 @@ fn donor_returns_are_appended_and_every_track_s_sends_still_reach_its_own_return
     let return_names: Vec<&str> = doc
         .descendants()
         .filter(|n| n.tag_name().name() == "ReturnTrack")
-        .filter_map(|n| n.descendants().find(|d| d.tag_name().name() == "EffectiveName"))
+        .filter_map(|n| {
+            n.descendants()
+                .find(|d| d.tag_name().name() == "EffectiveName")
+        })
         .filter_map(|n| n.attribute("Value"))
         .collect();
     assert_eq!(return_names, ["A-Rev", "A-Dly", "B-Rev", "B-Dly", "B-Echo"]);
 
-    assert_eq!(send_values(&merged, "Drums A"), ["0.5", "0.6", OFF, OFF, OFF]);
+    assert_eq!(
+        send_values(&merged, "Drums A"),
+        ["0.5", "0.6", OFF, OFF, OFF]
+    );
     assert_eq!(send_values(&merged, "A-Rev"), [OFF, "0.2", OFF, OFF, OFF]);
-    assert_eq!(send_values(&merged, "Lead B"), [OFF, OFF, "0.7", "0.8", "0.9"]);
+    assert_eq!(
+        send_values(&merged, "Lead B"),
+        [OFF, OFF, "0.7", "0.8", "0.9"]
+    );
     assert_eq!(send_values(&merged, "B-Dly"), [OFF, OFF, "0.3", OFF, OFF]);
 
     // Padding holders bring new automation targets; none may reuse an id.
@@ -319,13 +435,18 @@ fn donor_returns_are_appended_and_every_track_s_sends_still_reach_its_own_return
     let total = target_ids.len();
     target_ids.sort();
     target_ids.dedup();
-    assert_eq!(target_ids.len(), total, "padding sends reused an existing automation/modulation id");
+    assert_eq!(
+        target_ids.len(),
+        total,
+        "padding sends reused an existing automation/modulation id"
+    );
 }
 
 #[test]
 fn base_with_no_returns_gets_its_empty_sends_list_filled_in() {
     // A project with no returns stores a self-closing `<Sends />`.
-    let a_xml = project_xml_with_sends_pre(&track_with_sends("MidiTrack", 1, "Drums A", &[], 100), 0);
+    let a_xml =
+        project_xml_with_sends_pre(&track_with_sends("MidiTrack", 1, "Drums A", &[], 100), 0);
     let b_xml = project_xml_with_sends_pre(
         &format!(
             "{}{}",
@@ -336,8 +457,14 @@ fn base_with_no_returns_gets_its_empty_sends_list_filled_in() {
     );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -365,13 +492,23 @@ fn sends_inside_rack_chains_are_not_padded() {
         &format!(r#"<Devices><InstrumentGroupDevice Id="40"><Branches><Chain><DeviceChain><Mixer>{rack_sends}</Mixer></DeviceChain></Chain></Branches></InstrumentGroupDevice></Devices><Mixer>"#),
     );
     let b_xml = project_xml_with_sends_pre(
-        &format!("{}{}", b_track, track_with_sends("ReturnTrack", 2, "B-Rev", &[OFF], 110)),
+        &format!(
+            "{}{}",
+            b_track,
+            track_with_sends("ReturnTrack", 2, "B-Rev", &[OFF], 110)
+        ),
         1,
     );
 
     let merged = build_mashup(&[
-        MashupSource { xml: a_xml, track_indices: vec![0] },
-        MashupSource { xml: b_xml, track_indices: vec![0] },
+        MashupSource {
+            xml: a_xml,
+            track_indices: vec![0],
+        },
+        MashupSource {
+            xml: b_xml,
+            track_indices: vec![0],
+        },
     ])
     .unwrap();
 
@@ -385,7 +522,10 @@ fn sends_inside_rack_chains_are_not_padded() {
         .descendants()
         .filter(|n| n.tag_name().name() == "TrackSendHolder")
         .count();
-    assert_eq!(rack_holders, 1, "rack chain's own sends should be untouched");
+    assert_eq!(
+        rack_holders, 1,
+        "rack chain's own sends should be untouched"
+    );
 }
 
 #[test]

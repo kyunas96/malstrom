@@ -150,7 +150,13 @@ fn insert_action_for_missing_scale_info(
         .collect();
     let block = format!(
         "{}\n{indent}",
-        scale_information_block(&indent, default_schema, target_root_note, target_scale_index, ""),
+        scale_information_block(
+            &indent,
+            default_schema,
+            target_root_note,
+            target_scale_index,
+            ""
+        ),
     );
     edits.push(Edit {
         range: insert_at..insert_at,
@@ -249,9 +255,17 @@ pub(super) fn apply_scale_to_xml(
     };
     let default_schema = sniff_document_schema(&doc);
 
-    for clip in doc.descendants().filter(|n| n.tag_name().name() == "MidiClip") {
-        let action =
-            decide_clip_action(xml, &clip, target_root_note, target_scale_index, default_schema)?;
+    for clip in doc
+        .descendants()
+        .filter(|n| n.tag_name().name() == "MidiClip")
+    {
+        let action = decide_clip_action(
+            xml,
+            &clip,
+            target_root_note,
+            target_scale_index,
+            default_schema,
+        )?;
         match action {
             ClipAction::Incompatible => outcome.clips_incompatible += 1,
             ClipAction::AlreadySet => outcome.clips_already_set += 1,
@@ -277,8 +291,9 @@ pub(super) fn apply_scale_to_xml(
     // result is still well-formed before it's ever written to disk, since a
     // wrong range here (e.g. from an Ableton version/schema we mis-detected)
     // would otherwise silently corrupt the user's project file.
-    Document::parse(&new_xml)
-        .map_err(|e| anyhow!("Internal error: edited XML failed to re-parse ({e}), refusing to write"))?;
+    Document::parse(&new_xml).map_err(|e| {
+        anyhow!("Internal error: edited XML failed to re-parse ({e}), refusing to write")
+    })?;
 
     Ok((new_xml, outcome))
 }
@@ -303,11 +318,19 @@ fn rebuild_scale_information_edit(
     let other_children: String = node
         .children()
         .filter(|c| {
-            c.is_element() && !ROOT_TAGS.contains(&c.tag_name().name()) && c.tag_name().name() != "Name"
+            c.is_element()
+                && !ROOT_TAGS.contains(&c.tag_name().name())
+                && c.tag_name().name() != "Name"
         })
         .map(|c| format!("\n{indent}\t{}", &xml[c.range()]))
         .collect();
-    let block = scale_information_block(&indent, schema, target_root_note, target_scale_index, &other_children);
+    let block = scale_information_block(
+        &indent,
+        schema,
+        target_root_note,
+        target_scale_index,
+        &other_children,
+    );
     Edit {
         range: node.range(),
         block,

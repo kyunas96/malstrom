@@ -34,7 +34,10 @@ fn main() -> ExitCode {
 
 fn run(a: &Path, b: &Path, out: &Path) -> anyhow::Result<()> {
     if out.exists() {
-        anyhow::bail!("{} already exists -- choose a different name", out.display());
+        anyhow::bail!(
+            "{} already exists -- choose a different name",
+            out.display()
+        );
     }
     let sources = [a, b]
         .iter()
@@ -49,7 +52,10 @@ fn run(a: &Path, b: &Path, out: &Path) -> anyhow::Result<()> {
     let merged = build_mashup(&sources)?;
     let problems = diagnostics::check(&merged);
     if !problems.is_empty() {
-        anyhow::bail!("diagnostics failed, nothing written:\n  {}", problems.join("\n  "));
+        anyhow::bail!(
+            "diagnostics failed, nothing written:\n  {}",
+            problems.join("\n  ")
+        );
     }
     write_als(&merged, out)?;
     println!("wrote {}", out.display());

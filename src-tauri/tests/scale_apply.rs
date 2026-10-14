@@ -1,6 +1,6 @@
+use anyhow::Result;
 use malstrom_lib::als::output_path::{derive_output_path, resolve_output_path};
 use malstrom_lib::als::{AlsInspector, ApplyScaleOutcome};
-use anyhow::Result;
 use roxmltree::Document;
 use std::path::Path;
 
@@ -48,9 +48,7 @@ fn multi_clip_xml(clips: &[String]) -> String {
         .iter()
         .enumerate()
         .map(|(i, clip)| {
-            format!(
-                r#"<ClipSlot Id="{i}"><ClipSlot><Value>{clip}</Value></ClipSlot></ClipSlot>"#
-            )
+            format!(r#"<ClipSlot Id="{i}"><ClipSlot><Value>{clip}</Value></ClipSlot></ClipSlot>"#)
         })
         .collect();
     format!(
@@ -248,7 +246,10 @@ fn rewrites_live11_style_root_note_and_named_scale_without_duplicating() {
     // new Root/Name numeric pair.
     assert!(new_xml.contains(r#"<RootNote Value="2" />"#));
     assert!(new_xml.contains(r#"<Name Value="Minor" />"#));
-    assert!(!new_xml.contains("<Root "), "must not leave a stray <Root> tag");
+    assert!(
+        !new_xml.contains("<Root "),
+        "must not leave a stray <Root> tag"
+    );
     assert_eq!(new_xml.matches("RootNote").count(), 1);
     assert_eq!(new_xml.matches("<Name").count(), 1);
     Document::parse(&new_xml).expect("output must still be valid XML");
@@ -423,10 +424,7 @@ fn resolve_output_path_overwrite_targets_original_path() {
 
 #[test]
 fn resolve_output_path_duplicate_derives_new_path() {
-    let dir = std::env::temp_dir().join(format!(
-        "malstrom-test-resolve-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("malstrom-test-resolve-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let src = dir.join("Project.als");
     std::fs::write(&src, b"x").unwrap();
