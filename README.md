@@ -57,18 +57,26 @@ Ableton Live, but only on a small sample of files from the current Live
 version. Projects saved in older Live versions haven't been tested.
 
 - **Mashup** (`src-tauri/src/als/mashup.rs`): splice selected tracks from
-  two `.als` projects into one new, valid Live Set. Exposed as the
-  `mashup_create` Tauri command.
-- **Dev CLIs** (`src-tauri/src/bin/`) that drive the real Live app via macOS
-  accessibility (`osascript`) to prove its output loads:
+  two `.als` projects into one new, valid Live Set. Both projects keep
+  their return tracks, and every track's sends are lined up so each one
+  still feeds its own project's returns. Exposed as the `mashup_create`
+  Tauri command.
+- **Dev CLIs** (`src-tauri/src/bin/`):
+  - `mashup <A.als> <B.als> -o <out.als>` — mash up every track of one
+    pair into a new file, checked for known structural problems before
+    writing. Doesn't touch Live.
+
+  These two drive the real Live app via macOS accessibility (`osascript`)
+  to prove its output loads:
   - `mashup_batch_test <dir> [report.jsonl]` — mash up every pair of
     projects in a folder, open each result in Live, and log pass/fail to a
     resumable JSONL report
   - `als_upgrade <file-or-dir>` — have Live re-save older-version sets as
     current-schema copies (unverified; expect rough edges)
 
-  Run with `cargo run --bin <name> -- <args>` from `src-tauri/`. They open
-  and force-quit Live, so don't run them with unsaved work open.
+  Run with `cargo run --bin <name> -- <args>` from `src-tauri/`. The two
+  Live-driving ones open and force-quit Live, so don't run them with
+  unsaved work open.
 
 ## Technical highlights
 
