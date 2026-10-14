@@ -15,6 +15,7 @@ dist-ssr
 # Scratch planning docs (PRDs/specs) — temporary, fold into a README
 # next to the code before merging if anything's still worth keeping.
 docs/
+notes/
 
 # Playwright
 /test-results/
