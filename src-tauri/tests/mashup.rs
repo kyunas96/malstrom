@@ -1,4 +1,4 @@
-use malstrom_lib::als::mashup::{build_mashup, diagnostics, MashupSource};
+use malstrom_lib::als::mashup::{build_mashup, diagnostics, MashupSource, GROUP_TRACK_TEMPLATE};
 
 fn project_xml(tracks: &str) -> String {
     project_xml_with_next_pointee_id(tracks, 100)
@@ -543,4 +543,33 @@ fn diagnostics_flags_a_track_whose_send_count_does_not_match_the_returns() {
     let problems = diagnostics::check(&xml);
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert!(problems[0].contains("has 1 sends but the set has 2 return tracks"));
+}
+
+#[test]
+fn group_track_template_is_an_empty_top_level_group() {
+    let doc = roxmltree::Document::parse(GROUP_TRACK_TEMPLATE).unwrap();
+    let group = doc.root_element();
+    assert_eq!(group.tag_name().name(), "GroupTrack");
+    let child = |path: &[&str]| {
+        path.iter().try_fold(group, |n, tag| {
+            n.children().find(|c| c.tag_name().name() == *tag)
+        })
+    };
+    assert_eq!(
+        child(&["TrackGroupId"]).unwrap().attribute("Value"),
+        Some("-1")
+    );
+    for path in [
+        &["DeviceChain", "Mixer", "Sends"][..],
+        &["DeviceChain", "DeviceChain", "Devices"],
+    ] {
+        assert_eq!(
+            child(path)
+                .unwrap()
+                .children()
+                .filter(|n| n.is_element())
+                .count(),
+            0
+        );
+    }
 }
