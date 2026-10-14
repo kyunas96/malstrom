@@ -22,6 +22,7 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
       - run: pnpm test
       # Builds dist/, which Tauri's build script needs before cargo can compile.
       - run: pnpm build
