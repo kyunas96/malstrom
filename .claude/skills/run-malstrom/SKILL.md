@@ -64,17 +64,17 @@ doesn't exist (the driver does this for you).
 
 Driver commands (one per stdin line):
 
-| command | what it does |
-|---|---|
-| `nav <url>` | navigate |
-| `wait-for text=<substring>` | wait for text to appear (or pass a raw selector) |
-| `click <selector>` | Playwright locator syntax, e.g. `role=button[name=/Major/]` |
-| `click-text <substring>` | shorthand for `getByText(substring).click()` |
-| `fill <selector> <text...>` | fill an input |
-| `screenshot [path]` | full-page screenshot |
-| `eval <js expr>` | runs in page context, prints the JSON result |
-| `console` | print collected `console.error`/`pageerror` output so far |
-| `quit` | close the browser and exit |
+| command                     | what it does                                                |
+| --------------------------- | ----------------------------------------------------------- |
+| `nav <url>`                 | navigate                                                    |
+| `wait-for text=<substring>` | wait for text to appear (or pass a raw selector)            |
+| `click <selector>`          | Playwright locator syntax, e.g. `role=button[name=/Major/]` |
+| `click-text <substring>`    | shorthand for `getByText(substring).click()`                |
+| `fill <selector> <text...>` | fill an input                                               |
+| `screenshot [path]`         | full-page screenshot                                        |
+| `eval <js expr>`            | runs in page context, prints the JSON result                |
+| `console`                   | print collected `console.error`/`pageerror` output so far   |
+| `quit`                      | close the browser and exit                                  |
 
 The driver must be run with CWD at the repo root (`node
 .claude/skills/run-malstrom/driver.mjs`, not `cd` into the skill dir
@@ -111,7 +111,7 @@ already-running `pnpm dev`).
   `server: { port: 1420, strictPort: true }` for Tauri's benefit — if
   something else is already listening there, `pnpm dev` exits instead of
   picking a fallback port. Free it first: `lsof -ti:1420 -sTCP:LISTEN |
-  xargs -r kill`.
+xargs -r kill`.
 - **No Tauri/Rust backend needed for UI work.** `AlsProjectList` seeds its
   state from `dummyAlsProjects` on load; the `invoke('list_projects', ...)`
   Tauri call only fires after a user clicks "Choose Root Folder", which

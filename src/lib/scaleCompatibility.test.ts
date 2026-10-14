@@ -5,9 +5,15 @@ import type { ActiveScaleTag } from '../types/scaleFilter';
 
 const sunsetDrive = dummyAlsProjects.find((p) => p.name === 'Sunset Drive')!;
 const midnightLoop = dummyAlsProjects.find((p) => p.name === 'Midnight Loop')!;
-const glassCorridor = dummyAlsProjects.find((p) => p.name === 'Glass Corridor')!;
+const glassCorridor = dummyAlsProjects.find(
+  (p) => p.name === 'Glass Corridor'
+)!;
 
-function tag(root_name: string, scale_name: string, originPath: string): ActiveScaleTag {
+function tag(
+  root_name: string,
+  scale_name: string,
+  originPath: string
+): ActiveScaleTag {
   return { root_name, scale_name, originPath };
 }
 
@@ -37,7 +43,10 @@ describe('projectMatchesTags', () => {
   });
 
   it("mode 'all' requires every tag to hit", () => {
-    const tags = [tag('C', 'Major', sunsetDrive.path), tag('D', 'Dorian', midnightLoop.path)];
+    const tags = [
+      tag('C', 'Major', sunsetDrive.path),
+      tag('D', 'Dorian', midnightLoop.path),
+    ];
     expect(projectMatchesTags(midnightLoop, tags, 'all', 0)).toBe(false);
     expect(projectMatchesTags(midnightLoop, tags, 'any', 0)).toBe(true);
   });

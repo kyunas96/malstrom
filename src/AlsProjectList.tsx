@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react';
-import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
 import type { AlsProject } from './types/alsProject';
 import { pinnedRowAccentStyle } from './lib/pinnedRowStyle';
 import { ScaleFilterBar } from './ScaleFilterBar';
@@ -17,7 +22,11 @@ import { deriveDefaultFileName } from './lib/fileName';
 
 const columnHelper = createColumnHelper<AlsProject>();
 
-export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }) {
+export function AlsProjectList({
+  liveDbFolder,
+}: {
+  liveDbFolder: string | null;
+}) {
   const {
     rootFolder,
     projects,
@@ -32,8 +41,15 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
   const [minCoveragePercent, setMinCoveragePercent] = useState(0);
   const [nameFilter, setNameFilter] = useState('');
 
-  const { activeTags, tagMode, setTagMode, pinnedPaths, handleToggleTag, handleRemoveTag, clearTags } =
-    useScaleTags();
+  const {
+    activeTags,
+    tagMode,
+    setTagMode,
+    pinnedPaths,
+    handleToggleTag,
+    handleRemoveTag,
+    clearTags,
+  } = useScaleTags();
 
   const { orderedData, dividerIndex } = useFilteredProjects({
     projects,
@@ -97,15 +113,28 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
                 projectName: info.row.original.name,
                 root_name,
                 scale_name,
-                defaultFileName: deriveDefaultFileName(info.row.original.name, root_name, scale_name),
+                defaultFileName: deriveDefaultFileName(
+                  info.row.original.name,
+                  root_name,
+                  scale_name
+                ),
               })
             }
-            pullStatus={pullStatusByRow.get(info.row.original.path) ?? new Map()}
+            pullStatus={
+              pullStatusByRow.get(info.row.original.path) ?? new Map()
+            }
           />
         ),
       }),
     ],
-    [pinnedPaths, activeTags, minCoveragePercent, pullStatusByRow, requestPull, requestNewFilePull],
+    [
+      pinnedPaths,
+      activeTags,
+      minCoveragePercent,
+      pullStatusByRow,
+      requestPull,
+      requestNewFilePull,
+    ]
   );
 
   const table = useReactTable({
@@ -115,8 +144,14 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
   });
 
   const rows = table.getRowModel().rows;
-  const { tableContainerRef, rowVirtualizer, virtualRows, paddingTop, paddingBottom, toRowIndex } =
-    useVirtualizedRows({ rowCount: rows.length, dividerIndex });
+  const {
+    tableContainerRef,
+    rowVirtualizer,
+    virtualRows,
+    paddingTop,
+    paddingBottom,
+    toRowIndex,
+  } = useVirtualizedRows({ rowCount: rows.length, dividerIndex });
 
   const chooseFolder = () =>
     handleChooseFolder(() => {
@@ -133,7 +168,9 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
         {rootFolder && <p>{rootFolder}</p>}
         <progress value={progress?.completed} max={progress?.total} />
         <p>
-          {progress ? `Scanning folder… (${progress.completed}/${progress.total})` : 'Scanning folder…'}
+          {progress
+            ? `Scanning folder… (${progress.completed}/${progress.total})`
+            : 'Scanning folder…'}
         </p>
         {error && <p className="error-text">{error}</p>}
       </section>
@@ -148,12 +185,20 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
             <p className="folder-bar-path" title={rootFolder}>
               {rootFolder}
             </p>
-            <button type="button" className="folder-bar-change" onClick={chooseFolder}>
+            <button
+              type="button"
+              className="folder-bar-change"
+              onClick={chooseFolder}
+            >
               Change Folder
             </button>
           </>
         ) : (
-          <button type="button" className="folder-bar-change" onClick={chooseFolder}>
+          <button
+            type="button"
+            className="folder-bar-change"
+            onClick={chooseFolder}
+          >
             Choose Root Folder
           </button>
         )}
@@ -163,8 +208,9 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
         <div className="scales-header-title">
           <h2>Compatible Scales</h2>
           <p className="scale-mode-hint">
-            Click a scale to tag it and filter for other compatible projects — hover it to pull the
-            scale into this project as a new file or in place.
+            Click a scale to tag it and filter for other compatible projects —
+            hover it to pull the scale into this project as a new file or in
+            place.
           </p>
         </div>
         <div className="scales-header-controls">
@@ -221,11 +267,19 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
                 key={row.id}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className={isPinned ? 'scales-card-row is-pinned' : 'scales-card-row'}
-                style={isPinned ? pinnedRowAccentStyle(row.original.path, activeTags) : undefined}
+                className={
+                  isPinned ? 'scales-card-row is-pinned' : 'scales-card-row'
+                }
+                style={
+                  isPinned
+                    ? pinnedRowAccentStyle(row.original.path, activeTags)
+                    : undefined
+                }
               >
                 {row.getVisibleCells().map((cell) => (
-                  <div key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
+                  <div key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </div>
                 ))}
               </div>
             );
@@ -234,7 +288,11 @@ export function AlsProjectList({ liveDbFolder }: { liveDbFolder: string | null }
         </div>
       </div>
       {pendingPull && (
-        <PullConfirmDialog pending={pendingPull} onCancel={cancelPull} onConfirm={confirmPull} />
+        <PullConfirmDialog
+          pending={pendingPull}
+          onCancel={cancelPull}
+          onConfirm={confirmPull}
+        />
       )}
       {pendingNewFilePull && (
         <PullNewFileDialog

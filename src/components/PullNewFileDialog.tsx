@@ -24,9 +24,12 @@ export function PullNewFileDialog({
   return (
     <Modal onClose={onCancel} labelledBy="pull-new-file-title">
       <h3 id="pull-new-file-title">
-        Pull {pending.root_name} {pending.scale_name} into {pending.projectName}?
+        Pull {pending.root_name} {pending.scale_name} into {pending.projectName}
+        ?
       </h3>
-      <p>This is saved as a new file — the original project is never touched.</p>
+      <p>
+        This is saved as a new file — the original project is never touched.
+      </p>
       <input
         type="text"
         className="pull-new-file-input"
@@ -38,11 +41,17 @@ export function PullNewFileDialog({
       />
       {collides && (
         <p className="pull-new-file-warning">
-          That name matches the original file — choose a different name to save as a new file.
+          That name matches the original file — choose a different name to save
+          as a new file.
         </p>
       )}
       <div className="pull-confirm-actions">
-        <button type="button" className="filter-toggle active" onClick={confirm} disabled={!canSave}>
+        <button
+          type="button"
+          className="filter-toggle active"
+          onClick={confirm}
+          disabled={!canSave}
+        >
           Save
         </button>
         <button type="button" className="filter-toggle" onClick={onCancel}>

@@ -7,7 +7,7 @@ export function scaleKey(root_name: string, scale_name: string): string {
 
 export function projectScaleKeys(
   project: AlsProject,
-  minCoveragePercent: number,
+  minCoveragePercent: number
 ): Set<string> {
   const keys = new Set<string>();
   for (const candidate of project.scales) {
@@ -24,10 +24,12 @@ export function projectMatchesTags(
   project: AlsProject,
   tags: ActiveScaleTag[],
   mode: TagMatchMode,
-  minCoveragePercent: number,
+  minCoveragePercent: number
 ): boolean {
   if (tags.length === 0) return true;
   const keys = projectScaleKeys(project, minCoveragePercent);
   const tagKeys = tags.map((t) => scaleKey(t.root_name, t.scale_name));
-  return mode === 'any' ? tagKeys.some((k) => keys.has(k)) : tagKeys.every((k) => keys.has(k));
+  return mode === 'any'
+    ? tagKeys.some((k) => keys.has(k))
+    : tagKeys.every((k) => keys.has(k));
 }

@@ -10,7 +10,7 @@ export function sanitizeForFilename(s: string): string {
 export function deriveDefaultFileName(
   projectName: string,
   root_name: string,
-  scale_name: string,
+  scale_name: string
 ): string {
   const label = sanitizeForFilename(`${root_name} ${scale_name}`);
   return `${projectName} (${label}).als`;
@@ -26,10 +26,18 @@ function baseName(path: string): string {
 function resolveNamedFileName(fileName: string, originalPath: string): string {
   const sanitized = sanitizeForFilename(fileName.trim());
   const ext = baseName(originalPath).split('.').pop() ?? 'als';
-  return sanitized.toLowerCase().endsWith(`.${ext.toLowerCase()}`) ? sanitized : `${sanitized}.${ext}`;
+  return sanitized.toLowerCase().endsWith(`.${ext.toLowerCase()}`)
+    ? sanitized
+    : `${sanitized}.${ext}`;
 }
 
 /** True when `fileName` would resolve to the same file as `originalPath` — saving there would silently overwrite the original despite "save as new file". */
-export function collidesWithOriginal(fileName: string, originalPath: string): boolean {
-  return resolveNamedFileName(fileName, originalPath).toLowerCase() === baseName(originalPath).toLowerCase();
+export function collidesWithOriginal(
+  fileName: string,
+  originalPath: string
+): boolean {
+  return (
+    resolveNamedFileName(fileName, originalPath).toLowerCase() ===
+    baseName(originalPath).toLowerCase()
+  );
 }

@@ -10,7 +10,7 @@ const STORAGE_KEY = 'malstrom.liveDbFolder';
 // native dialog; this just remembers their last choice.
 export function useLiveDbFolder() {
   const [liveDbFolder, setLiveDbFolderState] = useState<string | null>(() =>
-    localStorage.getItem(STORAGE_KEY),
+    localStorage.getItem(STORAGE_KEY)
   );
 
   function setLiveDbFolder(path: string | null) {
@@ -29,5 +29,9 @@ export function useLiveDbFolder() {
     }
   }
 
-  return { liveDbFolder, chooseLiveDbFolder, clearLiveDbFolder: () => setLiveDbFolder(null) };
+  return {
+    liveDbFolder,
+    chooseLiveDbFolder,
+    clearLiveDbFolder: () => setLiveDbFolder(null),
+  };
 }

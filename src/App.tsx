@@ -5,7 +5,8 @@ import { useLiveDbFolder } from './hooks/useLiveDbFolder';
 import './App.css';
 
 function App() {
-  const { liveDbFolder, chooseLiveDbFolder, clearLiveDbFolder } = useLiveDbFolder();
+  const { liveDbFolder, chooseLiveDbFolder, clearLiveDbFolder } =
+    useLiveDbFolder();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (

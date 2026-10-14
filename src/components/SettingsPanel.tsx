@@ -18,11 +18,19 @@ export function SettingsPanel({
         Live Database folder: {liveDbFolder ?? 'Not set'}
       </p>
       <div className="pull-confirm-actions">
-        <button type="button" className="filter-toggle active" onClick={onChooseFolder}>
+        <button
+          type="button"
+          className="filter-toggle active"
+          onClick={onChooseFolder}
+        >
           Choose Live Database Folder…
         </button>
         {liveDbFolder && (
-          <button type="button" className="filter-toggle" onClick={onClearFolder}>
+          <button
+            type="button"
+            className="filter-toggle"
+            onClick={onClearFolder}
+          >
             Clear
           </button>
         )}

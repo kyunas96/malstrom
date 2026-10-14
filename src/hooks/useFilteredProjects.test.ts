@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { filterByName, orderWithPinnedFirst, scopeToVisibleScales } from './useFilteredProjects';
+import {
+  filterByName,
+  orderWithPinnedFirst,
+  scopeToVisibleScales,
+} from './useFilteredProjects';
 import type { AlsProject, ScaleCandidate } from '../types/alsProject';
 
 function scale(common: boolean): ScaleCandidate {
-  return { root_name: 'C', scale_name: 'Major', common, score: 1, clip_count: 1, coverage_percent: 100, alternates: [] };
+  return {
+    root_name: 'C',
+    scale_name: 'Major',
+    common,
+    score: 1,
+    clip_count: 1,
+    coverage_percent: 100,
+    alternates: [],
+  };
 }
 
-function project(path: string, name: string, scales: ScaleCandidate[] = []): AlsProject {
+function project(
+  path: string,
+  name: string,
+  scales: ScaleCandidate[] = []
+): AlsProject {
   return { path, name, scales };
 }
 
@@ -25,7 +41,10 @@ describe('scopeToVisibleScales', () => {
 });
 
 describe('filterByName', () => {
-  const projects = [project('/a.als', 'Sunset Drive'), project('/b.als', 'Midnight Loop')];
+  const projects = [
+    project('/a.als', 'Sunset Drive'),
+    project('/b.als', 'Midnight Loop'),
+  ];
 
   it('returns everything when the filter is blank', () => {
     expect(filterByName(projects, '  ')).toEqual(projects);
@@ -42,7 +61,10 @@ describe('orderWithPinnedFirst', () => {
   const c = project('/c.als', 'C');
 
   it('returns input unchanged with no divider when nothing is pinned', () => {
-    expect(orderWithPinnedFirst([a, b, c], [])).toEqual({ orderedData: [a, b, c], dividerIndex: -1 });
+    expect(orderWithPinnedFirst([a, b, c], [])).toEqual({
+      orderedData: [a, b, c],
+      dividerIndex: -1,
+    });
   });
 
   it('moves pinned rows to the front and reports the divider index', () => {

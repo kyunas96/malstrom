@@ -51,7 +51,7 @@ those dependencies traces back to a feature v0 explicitly cuts:
 
 Track Categorization itself (already merged) is the only real
 prerequisite, because it's what supplies `category` in `list_tracks`
-now. v0 doesn't need it as a *grouping* mechanism, just as an existing
+now. v0 doesn't need it as a _grouping_ mechanism, just as an existing
 field it's fine to ignore.
 
 **Net effect: v0 can be built now, independent of those four features, and
@@ -66,6 +66,7 @@ one new project.
 ## Scope
 
 **In:**
+
 - Scale filter → select **exactly 2** projects (not "two or more" —
   caps combinatorics and test surface for a throwaway build)
 - Whole tracks only (matches the standing decision in both specs)
@@ -77,13 +78,14 @@ one new project.
 
 **Explicitly cut (would be the first things added back if v0 earns
 its keep):**
+
 - Category-first grouping, or grouping by category at all
 - Inline recategorize
 - Any preview (audio playback or MIDI thumbnail)
 - Tempo/time-signature reconciliation UI
 - Provenance/confidence badges
 - Pre-Create warnings/review screen
-- >2 project selection
+- > 2 project selection
 
 ## Known limitations — surfaced, not hidden
 

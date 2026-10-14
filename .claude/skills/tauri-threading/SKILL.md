@@ -8,7 +8,7 @@ description: Threading and responsiveness rules for Tauri commands - when to use
 ## The one rule that matters most
 
 **A `#[tauri::command]` fn only moves off the main thread if it's `async fn`.**
-A plain sync `fn` command runs its *entire body* on the main thread, including
+A plain sync `fn` command runs its _entire body_ on the main thread, including
 any blocking wait like `.collect()` on a rayon parallel iterator or
 `rayon::join(...)`. This is true even if the actual work is spread across
 other OS threads — the main thread blocks waiting for it, which means it
@@ -41,6 +41,7 @@ pub async fn list_projects(root_path: String) -> Result<Vec<Project>, String> {
 
 Checklist for any command doing file I/O, XML/JSON parsing, image work, or
 looping over more than a handful of items:
+
 1. Make it `async fn`.
 2. Wrap the actual work in `tauri::async_runtime::spawn_blocking(move || { ... })`.
 3. `.await` the handle and flatten the `JoinError` with `.map_err(|e| e.to_string())?`.
