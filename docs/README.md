@@ -73,3 +73,14 @@ stages. The Stage 1 plan is the current work, checked off as it lands.
 - [Mashup Stage 1: implementation plan](mashup-stage1-plan.md). Return
   tracks and sends shipped in
   [#2](https://github.com/kyunas96/malstrom/pull/2), verified in Live.
+
+## 7. Somewhere to keep the user's corrections
+
+Track category overrides needed somewhere to live that isn't the `.als`
+file and isn't browser `localStorage`, which the Rust side can't see. So
+first came one shared JSON file, keyed by feature, that any later feature
+can read and write through.
+
+- [App overlay storage: PRD](app-overlay-storage-prd.md)
+- [App overlay storage: spec](app-overlay-storage-spec.md). Shipped in
+  [#10](https://github.com/kyunas96/malstrom/pull/10).
