@@ -96,7 +96,9 @@ async function handle(line) {
         break;
       }
       case 'console': {
-        console.log(errors.length ? errors.join('\n') : 'ok: no errors captured');
+        console.log(
+          errors.length ? errors.join('\n') : 'ok: no errors captured'
+        );
         break;
       }
       case 'quit': {

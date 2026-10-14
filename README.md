@@ -39,6 +39,7 @@ Point it at a folder of `.als` files and it will:
 This is early — v0.1, unreleased. What's solid vs. what's still missing:
 
 **Works today**
+
 - Directory scanning + virtualized/filterable project table
 - Explicit `ScaleInformation` parsing
 - Scale inference from MIDI clip content
@@ -46,6 +47,7 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 - Applying a scale to a project, writing it onto every compatible MIDI clip
 
 **Not yet**
+
 - No packaged release — run from source (below)
 - Near-matches (a clip one or two notes off from a scale) aren't detected;
   only exact pitch-class matches count

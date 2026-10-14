@@ -14,7 +14,11 @@ export function ScaleFilterControls({
   onMinCoverageChange: (percent: number) => void;
 }) {
   return (
-    <div className="row scale-filters" role="group" aria-label="Filter compatible scales">
+    <div
+      className="row scale-filters"
+      role="group"
+      aria-label="Filter compatible scales"
+    >
       <button
         type="button"
         aria-pressed={showCommonScales}

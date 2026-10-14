@@ -1,0 +1,5 @@
+dist
+src-tauri
+notes
+test-results
+pnpm-lock.yaml

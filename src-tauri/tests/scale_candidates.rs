@@ -1,6 +1,6 @@
+use anyhow::Result;
 use malstrom_lib::als::scale_constants::{SCALE_INTERVALS, SCALE_NAMES};
 use malstrom_lib::als::{AlsInspector, ScaleCandidate, ScaleCandidates};
-use anyhow::Result;
 
 #[path = "support/mod.rs"]
 mod support;
@@ -131,7 +131,7 @@ fn score_reflects_note_count_and_ranks_higher_first() {
     // Clip "1": 3 notes, only compatible with C Major (and supersets like chromatic-ish scales
     // that also contain C/E/G, but we only assert relative ordering against clip "2" here).
     let sparse_clip: Vec<(i32, u32)> = vec![(60, 1), (64, 1), (67, 1)]; // C, E, G — 3 notes total
-    // Clip "2": same pitch classes, but many more notes, so it should dominate the score.
+                                                                        // Clip "2": same pitch classes, but many more notes, so it should dominate the score.
     let dense_clip: Vec<(i32, u32)> = vec![(60, 20), (64, 20), (67, 20)]; // C, E, G — 60 notes total
 
     let xml = midi_clip_xml_with_notes(&[("1", &sparse_clip)]);

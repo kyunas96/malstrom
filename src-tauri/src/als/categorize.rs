@@ -29,11 +29,23 @@ pub enum TrackCategory {
 const CATEGORY_KEYWORDS: &[(TrackCategory, &[&str])] = &[
     (
         TrackCategory::Drums,
-        &["drum", "drums", "kit", "kick", "drum loop", "snare", "hihat", "hi-hat"],
+        &[
+            "drum",
+            "drums",
+            "kit",
+            "kick",
+            "drum loop",
+            "snare",
+            "hihat",
+            "hi-hat",
+        ],
     ),
     (TrackCategory::Bass, &["bass", "sub"]),
     (TrackCategory::Percussion, &["perc", "percussion"]),
-    (TrackCategory::Vocals, &["vox", "vocal", "vocals", "solo voice"]),
+    (
+        TrackCategory::Vocals,
+        &["vox", "vocal", "vocals", "solo voice"],
+    ),
     (TrackCategory::Lead, &["lead", "melody"]),
     (TrackCategory::Pads, &["pad", "pads", "atmos"]),
     (TrackCategory::Fx, &["fx", "sfx", "riser"]),
@@ -160,7 +172,9 @@ fn instrument_device<'a, 'input>(track: &Node<'a, 'input>) -> Option<Node<'a, 'i
 /// back to name matching.
 fn instrument_tag_filename(device: &Node) -> Option<String> {
     let source = if device.tag_name().name() == "OriginalSimpler" {
-        device.descendants().find(|n| n.tag_name().name() == "SampleRef")
+        device
+            .descendants()
+            .find(|n| n.tag_name().name() == "SampleRef")
     } else {
         device
             .children()

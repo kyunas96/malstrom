@@ -1,4 +1,7 @@
-export type ApplyState = { state: 'loading' | 'success' | 'error'; message: string };
+export type ApplyState = {
+  state: 'loading' | 'success' | 'error';
+  message: string;
+};
 
 export type PendingPull = {
   projectPath: string;

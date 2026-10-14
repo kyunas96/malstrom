@@ -2,7 +2,7 @@
 
 ## Problem
 
-malstrom can tell you a project's scale, but not what's *in* it. Before
+malstrom can tell you a project's scale, but not what's _in_ it. Before
 [Mashup](mashup-v0-prd.md) can show "here's what you can pull from each
 project," malstrom needs some way to make sense of a project's tracks —
 otherwise the Mashup form is just a flat, meaningless list of whatever

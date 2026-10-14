@@ -50,7 +50,11 @@ fn run(path: &Path) -> anyhow::Result<()> {
 fn run_dir(root: &Path) -> anyhow::Result<()> {
     let mut paths = scan_als_files(root)?;
     paths.sort();
-    println!("Found {} .als file(s) under {}.", paths.len(), root.display());
+    println!(
+        "Found {} .als file(s) under {}.",
+        paths.len(),
+        root.display()
+    );
 
     let (mut upgraded, mut skipped, mut failed) = (0, 0, 0);
     for path in &paths {
@@ -84,7 +88,9 @@ fn run_dir(root: &Path) -> anyhow::Result<()> {
 
 fn upgraded_path(original: &Path) -> anyhow::Result<PathBuf> {
     let dir = original.parent().unwrap_or_else(|| Path::new("."));
-    let name = original.file_name().ok_or_else(|| anyhow::anyhow!("path has no file name"))?;
+    let name = original
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("path has no file name"))?;
     Ok(dir.join(LIVE_12_UPGRADE_DIR).join(name))
 }
 
@@ -101,7 +107,11 @@ fn upgrade_one(path: &Path) -> anyhow::Result<()> {
     // GUI automation.
     std::fs::create_dir_all(target.parent().unwrap_or_else(|| Path::new(".")))?;
 
-    println!("Opening {} in Live and saving as {}...", path.display(), target.display());
+    println!(
+        "Opening {} in Live and saving as {}...",
+        path.display(),
+        target.display()
+    );
     save_as_via_live(path, &target)?;
 
     println!("Waiting for the file to land on disk...");
@@ -109,7 +119,10 @@ fn upgrade_one(path: &Path) -> anyhow::Result<()> {
 
     println!("Verifying it loads cleanly...");
     AlsInspector::open(&target)?;
-    println!("PASS: {} is a valid, current-schema copy.", target.display());
+    println!(
+        "PASS: {} is a valid, current-schema copy.",
+        target.display()
+    );
     println!("(Live is left open -- quit it yourself once you're done looking.)");
     Ok(())
 }
@@ -169,7 +182,9 @@ fn wait_for_file(path: &Path, timeout: Duration) -> anyhow::Result<()> {
 /// silently confirming an overwrite is exactly the risk this tool exists
 /// to avoid -- better to time out and surface it.
 fn save_as_via_live(path: &Path, target: &Path) -> anyhow::Result<()> {
-    let target_dir = target.parent().ok_or_else(|| anyhow::anyhow!("target path has no parent directory"))?;
+    let target_dir = target
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("target path has no parent directory"))?;
     let target_stem = target
         .file_stem()
         .and_then(|n| n.to_str())
@@ -254,7 +269,10 @@ fn save_as_via_live(path: &Path, target: &Path) -> anyhow::Result<()> {
         target_dir = target_dir.display(),
     );
 
-    let output = std::process::Command::new("osascript").arg("-e").arg(&script).output()?;
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()?;
     if !output.status.success() {
         anyhow::bail!(
             "osascript failed ({}): {}",

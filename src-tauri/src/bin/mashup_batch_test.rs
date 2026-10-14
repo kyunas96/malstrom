@@ -24,7 +24,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
     let root = PathBuf::from(root);
-    let report_path = args.get(1).map(PathBuf::from).unwrap_or_else(|| root.join("mashup-batch-report.jsonl"));
+    let report_path = args
+        .get(1)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("mashup-batch-report.jsonl"));
 
     match run(&root, &report_path) {
         Ok(()) => ExitCode::SUCCESS,
@@ -50,7 +53,10 @@ fn run(root: &Path, report_path: &Path) -> anyhow::Result<()> {
     );
 
     let done_pairs = load_done_pairs(report_path)?;
-    let mut report = OpenOptions::new().create(true).append(true).open(report_path)?;
+    let mut report = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(report_path)?;
 
     let mut loaded: Vec<(String, String)> = Vec::new();
     for path in &paths {
@@ -60,7 +66,11 @@ fn run(root: &Path, report_path: &Path) -> anyhow::Result<()> {
             Err(e) => append_line(&mut report, &json!({"file": key, "error": e.to_string()}))?,
         }
     }
-    println!("{} file(s) loaded cleanly; {} unusable.", loaded.len(), paths.len() - loaded.len());
+    println!(
+        "{} file(s) loaded cleanly; {} unusable.",
+        loaded.len(),
+        paths.len() - loaded.len()
+    );
 
     let total_pairs = loaded.len() * loaded.len().saturating_sub(1) / 2;
     let mut done = 0usize;
@@ -86,23 +96,38 @@ fn run(root: &Path, report_path: &Path) -> anyhow::Result<()> {
 /// Runs Phase A (always) and, for a structurally clean merge, Phase B
 /// against real Live -- appending exactly one report line for the pair
 /// either way.
-fn process_pair(report: &mut File, a_key: &str, a_xml: &str, b_key: &str, b_xml: &str) -> anyhow::Result<()> {
+fn process_pair(
+    report: &mut File,
+    a_key: &str,
+    a_xml: &str,
+    b_key: &str,
+    b_xml: &str,
+) -> anyhow::Result<()> {
     let (merged, problems) = match phase_a(a_xml, b_xml) {
         Err(panic_payload) => {
             let msg = panic_message(&panic_payload);
             println!("PANIC: {msg}");
-            return append_line(report, &json!({"a": a_key, "b": b_key, "error": format!("panicked: {msg}")}));
+            return append_line(
+                report,
+                &json!({"a": a_key, "b": b_key, "error": format!("panicked: {msg}")}),
+            );
         }
         Ok(Err(e)) => {
             println!("ERROR: {e}");
-            return append_line(report, &json!({"a": a_key, "b": b_key, "error": e.to_string()}));
+            return append_line(
+                report,
+                &json!({"a": a_key, "b": b_key, "error": e.to_string()}),
+            );
         }
         Ok(Ok(pair)) => pair,
     };
 
     if !problems.is_empty() {
         println!("structurally unsound ({} problem(s))", problems.len());
-        return append_line(report, &json!({"a": a_key, "b": b_key, "structural_problems": problems}));
+        return append_line(
+            report,
+            &json!({"a": a_key, "b": b_key, "structural_problems": problems}),
+        );
     }
 
     let live_result = phase_b(&merged)?;
@@ -131,8 +156,14 @@ fn phase_a(a_xml: &str, b_xml: &str) -> std::thread::Result<anyhow::Result<(Stri
         let a_indices = all_track_indices(a_xml)?;
         let b_indices = all_track_indices(b_xml)?;
         let merged = build_mashup(&[
-            MashupSource { xml: a_xml.to_string(), track_indices: a_indices },
-            MashupSource { xml: b_xml.to_string(), track_indices: b_indices },
+            MashupSource {
+                xml: a_xml.to_string(),
+                track_indices: a_indices,
+            },
+            MashupSource {
+                xml: b_xml.to_string(),
+                track_indices: b_indices,
+            },
         ])?;
         let problems = diagnostics::check(&merged);
         Ok((merged, problems))
@@ -157,7 +188,9 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 fn phase_b(merged: &str) -> anyhow::Result<String> {
     // A fresh name every pair: a fixed name risks `open` refocusing a stale
     // window instead of loading this pair's actual content.
-    let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos();
     let temp_path = std::env::temp_dir().join(format!("mashup-batch-test-{unique}.als"));
 
     let live_result = match write_als(merged, &temp_path) {
@@ -250,7 +283,10 @@ fn open_in_live_patient(path: &Path) -> anyhow::Result<Option<String>> {
         path = path.display()
     );
 
-    let output = std::process::Command::new("osascript").arg("-e").arg(&script).output()?;
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()?;
     if !output.status.success() {
         anyhow::bail!(
             "osascript failed ({}): {}",
@@ -275,10 +311,15 @@ fn open_in_live_patient(path: &Path) -> anyhow::Result<Option<String>> {
 /// and never risks the deadlock a `tell application "Live" to quit` can hit
 /// against its own "Save changes?" sheet.
 fn force_kill_live() {
-    let _ = std::process::Command::new("pkill").args(["-9", "-x", "Live"]).status();
+    let _ = std::process::Command::new("pkill")
+        .args(["-9", "-x", "Live"])
+        .status();
     for _ in 0..20 {
-        let still_running =
-            std::process::Command::new("pgrep").args(["-x", "Live"]).output().map(|o| o.status.success()).unwrap_or(false);
+        let still_running = std::process::Command::new("pgrep")
+            .args(["-x", "Live"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
         if !still_running {
             return;
         }
@@ -296,7 +337,8 @@ fn drop_superseded_originals(paths: Vec<PathBuf>) -> Vec<PathBuf> {
         .iter()
         .filter_map(|p| {
             let parent = p.parent()?;
-            let is_upgraded_copy = parent.file_name().and_then(|n| n.to_str()) == Some(LIVE_12_UPGRADE_DIR);
+            let is_upgraded_copy =
+                parent.file_name().and_then(|n| n.to_str()) == Some(LIVE_12_UPGRADE_DIR);
             if !is_upgraded_copy {
                 return None;
             }
@@ -305,7 +347,10 @@ fn drop_superseded_originals(paths: Vec<PathBuf>) -> Vec<PathBuf> {
         })
         .collect();
 
-    paths.into_iter().filter(|p| !superseded.contains(p)).collect()
+    paths
+        .into_iter()
+        .filter(|p| !superseded.contains(p))
+        .collect()
 }
 
 fn append_line(file: &mut File, value: &Value) -> anyhow::Result<()> {
@@ -332,7 +377,10 @@ fn load_done_pairs(report_path: &Path) -> anyhow::Result<HashSet<String>> {
         }
         match serde_json::from_str::<Value>(&line) {
             Ok(value) => {
-                if let (Some(a), Some(b)) = (value.get("a").and_then(Value::as_str), value.get("b").and_then(Value::as_str)) {
+                if let (Some(a), Some(b)) = (
+                    value.get("a").and_then(Value::as_str),
+                    value.get("b").and_then(Value::as_str),
+                ) {
                     done.insert(format!("{a}|{b}"));
                 }
             }

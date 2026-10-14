@@ -30,11 +30,18 @@ fn scan_als_files_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            let is_backup = path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.eq_ignore_ascii_case("backup"));
+            let is_backup = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.eq_ignore_ascii_case("backup"));
             if !is_backup {
                 scan_als_files_into(&path, out)?;
             }
-        } else if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("als")) {
+        } else if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("als"))
+        {
             out.push(path);
         }
     }
@@ -43,7 +50,13 @@ fn scan_als_files_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 
 pub fn sanitize_for_filename(s: &str) -> String {
     s.chars()
-        .map(|c| if UNSAFE_FILENAME_CHARS.contains(&c) { '-' } else { c })
+        .map(|c| {
+            if UNSAFE_FILENAME_CHARS.contains(&c) {
+                '-'
+            } else {
+                c
+            }
+        })
         .collect()
 }
 
@@ -88,7 +101,10 @@ pub fn named_output_path(original: &Path, file_name: &str) -> PathBuf {
         .and_then(|s| s.to_str())
         .unwrap_or("als");
     let sanitized = sanitize_for_filename(file_name.trim());
-    let named = if sanitized.to_lowercase().ends_with(&format!(".{}", ext.to_lowercase())) {
+    let named = if sanitized
+        .to_lowercase()
+        .ends_with(&format!(".{}", ext.to_lowercase()))
+    {
         sanitized
     } else {
         format!("{sanitized}.{ext}")
@@ -141,17 +157,31 @@ pub fn backup_before_overwrite(src_path: &Path) -> Result<PathBuf> {
     // a real write so a permission problem surfaces here, not mid-copy.
     let probe = backup_dir.join(".malstrom-write-check");
     std::fs::write(&probe, b"").map_err(|e| {
-        anyhow!("Backup/ folder at {} is not writable ({e}) — refusing to write.", backup_dir.display())
+        anyhow!(
+            "Backup/ folder at {} is not writable ({e}) — refusing to write.",
+            backup_dir.display()
+        )
     })?;
     let _ = std::fs::remove_file(&probe);
 
-    let stem = src_path.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
-    let ext = src_path.extension().and_then(|s| s.to_str()).unwrap_or("als");
+    let stem = src_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("project");
+    let ext = src_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("als");
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H%M%S");
     let backup_path = backup_dir.join(format!("{stem} [{timestamp}].{ext}"));
 
-    std::fs::copy(src_path, &backup_path)
-        .map_err(|e| anyhow!("Failed to back up {} to {}: {e}", src_path.display(), backup_path.display()))?;
+    std::fs::copy(src_path, &backup_path).map_err(|e| {
+        anyhow!(
+            "Failed to back up {} to {}: {e}",
+            src_path.display(),
+            backup_path.display()
+        )
+    })?;
 
     Ok(backup_path)
 }

@@ -206,9 +206,7 @@ fn clip_note_count(clip_node: &Node) -> u32 {
 /// carries the root's pitch class and a bitmask of the scale's absolute
 /// pitch classes at that root, so identical-sounding matches (relative
 /// modes) can be grouped together later.
-fn matching_scales(
-    pitch_classes: &HashSet<i32>,
-) -> Result<Vec<(i32, String, String, bool, u16)>> {
+fn matching_scales(pitch_classes: &HashSet<i32>) -> Result<Vec<(i32, String, String, bool, u16)>> {
     let mut matches = Vec::new();
 
     for root_note in 0..NOTE_NAMES.len() as i32 {

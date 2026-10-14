@@ -33,10 +33,14 @@ export function useVirtualizedRows({
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom =
-    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+    virtualRows.length > 0
+      ? totalSize - virtualRows[virtualRows.length - 1].end
+      : 0;
 
   function toRowIndex(virtualIndex: number): number {
-    return dividerIndex >= 0 && virtualIndex > dividerIndex ? virtualIndex - 1 : virtualIndex;
+    return dividerIndex >= 0 && virtualIndex > dividerIndex
+      ? virtualIndex - 1
+      : virtualIndex;
   }
 
   return {

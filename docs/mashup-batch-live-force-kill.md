@@ -40,14 +40,14 @@ tool that might have a real project open.
 
 ## What I confirmed by hand (2026-09-08)
 
-- **The recovery dialog** reads: *"Live unexpectedly quit while you were
+- **The recovery dialog** reads: _"Live unexpectedly quit while you were
   working on the Live Set "<filename>". Would you like to recover your
-  work?"*, with **No** and **Yes** buttons (Yes is the default). The file
+  work?"_, with **No** and **Yes** buttons (Yes is the default). The file
   name changes and doesn't matter: every kill is deliberate and every file
   is throwaway, so the tool always clicks **No**. It matches on the stable
   part, `"unexpectedly quit"`.
-- **The real failure dialog** reads: *"The document "<path>" is corrupt and
-  cannot be loaded. (<reason>)"*, with a single **OK** button. For example,
+- **The real failure dialog** reads: _"The document "<path>" is corrupt and
+  cannot be loaded. (<reason>)"_, with a single **OK** button. For example,
   the reason `GroovePool corrupted` came up in practice. The tool matches
   on `"is corrupt and cannot be loaded"`. The two dialogs can also be told
   apart by their buttons alone: one button versus two.

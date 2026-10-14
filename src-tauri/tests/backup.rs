@@ -3,7 +3,10 @@ use std::fs;
 
 #[test]
 fn refuses_when_backup_dir_missing() {
-    let dir = std::env::temp_dir().join(format!("malstrom-backup-test-missing-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "malstrom-backup-test-missing-{}",
+        std::process::id()
+    ));
     fs::create_dir_all(&dir).unwrap();
     let src = dir.join("Project.als");
     fs::write(&src, b"fake gzip bytes").unwrap();

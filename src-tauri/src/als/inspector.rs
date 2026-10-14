@@ -63,7 +63,10 @@ impl AlsInspector {
     /// non-empty, are tried in order via the Live Database; every track
     /// without a resolved DB tag (or when no paths are given) falls back to
     /// name-keyword matching.
-    pub fn extract_tracks(&self, live_db_paths: &[std::path::PathBuf]) -> Result<Vec<TrackSummary>> {
+    pub fn extract_tracks(
+        &self,
+        live_db_paths: &[std::path::PathBuf],
+    ) -> Result<Vec<TrackSummary>> {
         let doc = self.parse()?;
         categorize::list_tracks(&doc, live_db_paths)
     }

@@ -45,8 +45,10 @@ pub async fn list_projects(
 ) -> Result<Vec<AlsProjectSummary>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         list_projects_in_with_progress(root_path, |completed, total| {
-            let _ =
-                window.emit("list-projects-progress", ListProjectsProgress { completed, total });
+            let _ = window.emit(
+                "list-projects-progress",
+                ListProjectsProgress { completed, total },
+            );
         })
     })
     .await
@@ -180,8 +182,11 @@ pub async fn list_tracks(
         let candidates = live_db_folder
             .map(|folder| crate::als::livedb::find_db_files(std::path::Path::new(&folder)))
             .unwrap_or_default();
-        let inspector = AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
-        inspector.extract_tracks(&candidates).map_err(|e| e.to_string())
+        let inspector =
+            AlsInspector::open(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
+        inspector
+            .extract_tracks(&candidates)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -204,7 +209,10 @@ pub struct MashupSourceInput {
 /// `file_name` is refused if it would collide with an existing file --
 /// same "ask for a different name" behavior as `apply_scale_to_project`.
 #[tauri::command]
-pub async fn mashup_create(sources: Vec<MashupSourceInput>, file_name: String) -> Result<String, String> {
+pub async fn mashup_create(
+    sources: Vec<MashupSourceInput>,
+    file_name: String,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if sources.len() != 2 {
             return Err("Mashup v0 supports exactly 2 source projects".to_string());

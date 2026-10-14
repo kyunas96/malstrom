@@ -163,10 +163,7 @@ pub fn db_with_tag(dir: &Path, filename: &str, tag: &str) -> PathBuf {
 /// fixtures into, so parallel tests (which all share one process id) never
 /// collide. Callers should give each call site its own `label`.
 pub fn temp_dir(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "malstrom-test-{label}-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("malstrom-test-{label}-{}", std::process::id()));
     // Guard against a stale directory left behind by a previous run (e.g.
     // interrupted mid-test) so each run starts from a clean, predictable set
     // of files.

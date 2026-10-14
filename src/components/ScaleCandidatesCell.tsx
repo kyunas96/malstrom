@@ -2,7 +2,11 @@ import { useState } from 'react';
 import type { ScaleCandidate } from '../types/alsProject';
 import type { ActiveScaleTag } from '../types/scaleFilter';
 import type { ApplyState } from '../types/scaleMode';
-import { groupByRootNote, candidateMatchesTag, ROOT_GROUP_PREVIEW_COUNT } from '../lib/scaleGrouping';
+import {
+  groupByRootNote,
+  candidateMatchesTag,
+  ROOT_GROUP_PREVIEW_COUNT,
+} from '../lib/scaleGrouping';
 import { scaleKey } from '../lib/scaleCompatibility';
 import { EmptyScalesIcon } from './icons/EmptyScalesIcon';
 import { ScaleMatchEntry } from './ScaleMatchEntry';
@@ -51,9 +55,16 @@ export function ScaleCandidatesCell({
   }
 
   const allGroups = groupByRootNote(tagFilteredScales);
-  const visibleGroups = expanded ? allGroups : allGroups.slice(0, ROOT_GROUP_PREVIEW_COUNT);
-  const hiddenGroups = expanded ? [] : allGroups.slice(ROOT_GROUP_PREVIEW_COUNT);
-  const hiddenCount = hiddenGroups.reduce((sum, [, group]) => sum + group.length, 0);
+  const visibleGroups = expanded
+    ? allGroups
+    : allGroups.slice(0, ROOT_GROUP_PREVIEW_COUNT);
+  const hiddenGroups = expanded
+    ? []
+    : allGroups.slice(ROOT_GROUP_PREVIEW_COUNT);
+  const hiddenCount = hiddenGroups.reduce(
+    (sum, [, group]) => sum + group.length,
+    0
+  );
 
   return (
     <div className="scales-by-root">
@@ -77,12 +88,20 @@ export function ScaleCandidatesCell({
         </div>
       ))}
       {hiddenCount > 0 ? (
-        <button type="button" className="scales-toggle" onClick={() => setExpanded(true)}>
+        <button
+          type="button"
+          className="scales-toggle"
+          onClick={() => setExpanded(true)}
+        >
           Show {hiddenCount} more
         </button>
       ) : (
         allGroups.length > ROOT_GROUP_PREVIEW_COUNT && (
-          <button type="button" className="scales-toggle" onClick={() => setExpanded(false)}>
+          <button
+            type="button"
+            className="scales-toggle"
+            onClick={() => setExpanded(false)}
+          >
             Show fewer
           </button>
         )

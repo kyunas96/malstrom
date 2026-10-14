@@ -58,7 +58,11 @@ export function ScaleMatchEntry({
           </span>
           <span className="scale-match-bar-track">
             <span
-              className={belowThreshold ? 'scale-match-bar-fill is-weak' : 'scale-match-bar-fill'}
+              className={
+                belowThreshold
+                  ? 'scale-match-bar-fill is-weak'
+                  : 'scale-match-bar-fill'
+              }
               style={{ width: `${scale.coverage_percent}%` }}
             />
           </span>

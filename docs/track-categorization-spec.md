@@ -77,7 +77,7 @@ New module `categorize.rs`:
 
 ## Live DB path setting
 
-> **Shipped differently:** the setting became a Live Database *folder*, not
+> **Shipped differently:** the setting became a Live Database _folder_, not
 > a single file
 > ([`70e2d42`](https://github.com/kyunas96/malstrom/commit/70e2d42)). Live
 > keeps one `Live-files-*.db` per major version, so `list_tracks` tries

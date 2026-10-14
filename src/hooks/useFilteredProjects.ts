@@ -6,19 +6,24 @@ import { projectMatchesTags } from '../lib/scaleCompatibility';
 export function scopeToVisibleScales(
   projects: AlsProject[],
   showCommonScales: boolean,
-  showExoticScales: boolean,
+  showExoticScales: boolean
 ): AlsProject[] {
   return projects.map((project) => ({
     ...project,
     scales: project.scales.filter(
-      (s) => (showCommonScales && s.common) || (showExoticScales && !s.common),
+      (s) => (showCommonScales && s.common) || (showExoticScales && !s.common)
     ),
   }));
 }
 
-export function filterByName(projects: AlsProject[], nameFilter: string): AlsProject[] {
+export function filterByName(
+  projects: AlsProject[],
+  nameFilter: string
+): AlsProject[] {
   const needle = nameFilter.trim().toLowerCase();
-  return needle ? projects.filter((p) => p.name.toLowerCase().includes(needle)) : projects;
+  return needle
+    ? projects.filter((p) => p.name.toLowerCase().includes(needle))
+    : projects;
 }
 
 /** Moves pinned projects to the front, returning the boundary index between
@@ -26,7 +31,7 @@ export function filterByName(projects: AlsProject[], nameFilter: string): AlsPro
  * pinned or nothing left unpinned). */
 export function orderWithPinnedFirst(
   projects: AlsProject[],
-  pinnedPaths: string[],
+  pinnedPaths: string[]
 ): { orderedData: AlsProject[]; dividerIndex: number } {
   if (pinnedPaths.length === 0) {
     return { orderedData: projects, dividerIndex: -1 };
@@ -39,7 +44,10 @@ export function orderWithPinnedFirst(
   if (pinnedRows.length === 0 || otherRows.length === 0) {
     return { orderedData: [...pinnedRows, ...otherRows], dividerIndex: -1 };
   }
-  return { orderedData: [...pinnedRows, ...otherRows], dividerIndex: pinnedRows.length };
+  return {
+    orderedData: [...pinnedRows, ...otherRows],
+    dividerIndex: pinnedRows.length,
+  };
 }
 
 export function useFilteredProjects({
@@ -63,20 +71,23 @@ export function useFilteredProjects({
 }) {
   const scopedProjects = useMemo(
     () => scopeToVisibleScales(projects, showCommonScales, showExoticScales),
-    [projects, showCommonScales, showExoticScales],
+    [projects, showCommonScales, showExoticScales]
   );
 
   const data = useMemo(() => {
     return scopedProjects.filter((p) =>
-      projectMatchesTags(p, activeTags, tagMode, minCoveragePercent),
+      projectMatchesTags(p, activeTags, tagMode, minCoveragePercent)
     );
   }, [scopedProjects, activeTags, tagMode, minCoveragePercent]);
 
-  const nameFiltered = useMemo(() => filterByName(data, nameFilter), [data, nameFilter]);
+  const nameFiltered = useMemo(
+    () => filterByName(data, nameFilter),
+    [data, nameFilter]
+  );
 
   const { orderedData, dividerIndex } = useMemo(
     () => orderWithPinnedFirst(nameFiltered, pinnedPaths),
-    [nameFiltered, pinnedPaths],
+    [nameFiltered, pinnedPaths]
   );
 
   return { orderedData, dividerIndex };

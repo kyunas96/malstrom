@@ -17,6 +17,8 @@ describe('collidesWithOriginal', () => {
   });
 
   it('allows a distinct name', () => {
-    expect(collidesWithOriginal('MyProject (D Minor).als', original)).toBe(false);
+    expect(collidesWithOriginal('MyProject (D Minor).als', original)).toBe(
+      false
+    );
   });
 });

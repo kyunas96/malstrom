@@ -20,7 +20,9 @@ export function ProjectNameCell({
   liveDbFolder: string | null;
 }) {
   const isPinned = pinnedPaths.includes(path);
-  const tagIndex = isPinned ? activeTags.findIndex((t) => t.originPath === path) : -1;
+  const tagIndex = isPinned
+    ? activeTags.findIndex((t) => t.originPath === path)
+    : -1;
   const [tracks, setTracks] = useState<TrackSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +69,11 @@ export function ProjectNameCell({
       >
         Show in Finder
       </button>
-      <button type="button" className="open-in-live-button" onClick={loadTracks}>
+      <button
+        type="button"
+        className="open-in-live-button"
+        onClick={loadTracks}
+      >
         {tracks ? 'Hide Track Tags' : 'Show Track Tags'}
       </button>
       {error && <div style={{ color: 'red' }}>{error}</div>}

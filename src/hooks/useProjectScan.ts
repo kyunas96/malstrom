@@ -5,7 +5,10 @@ import { listen } from '@tauri-apps/api/event';
 import type { AlsProject } from '../types/alsProject';
 import { dummyAlsProjects } from '../fixtures/alsProjects';
 
-export function upsertProject(projects: AlsProject[], updated: AlsProject): AlsProject[] {
+export function upsertProject(
+  projects: AlsProject[],
+  updated: AlsProject
+): AlsProject[] {
   const existing = projects.some((p) => p.path === updated.path);
   return existing
     ? projects.map((p) => (p.path === updated.path ? updated : p))
@@ -16,7 +19,10 @@ export function useProjectScan() {
   const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [projects, setProjects] = useState<AlsProject[]>(dummyAlsProjects);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function scan(root: string) {
@@ -27,7 +33,7 @@ export function useProjectScan() {
 
     const unlisten = await listen<{ completed: number; total: number }>(
       'list-projects-progress',
-      (event) => setProgress(event.payload),
+      (event) => setProgress(event.payload)
     );
 
     try {
