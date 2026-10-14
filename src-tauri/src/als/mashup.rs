@@ -1,6 +1,13 @@
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 
+/// An empty Live 12 `GroupTrack` (no devices, no clips, `TrackGroupId -1`,
+/// an empty `<Sends />` for `pad_track_sends` to fill), cut from a real
+/// Live 12.2 set with its Ids renumbered from 1. Most projects have no group
+/// track of their own to clone, so each mashup variation's group comes from
+/// here.
+pub const GROUP_TRACK_TEMPLATE: &str = include_str!("templates/group_track.xml");
+
 /// One source project's raw (decompressed) XML plus the positions of the
 /// tracks to pull from it -- indices into the same top-level, non-return
 /// track order `categorize::list_tracks` returns, so the frontend's
