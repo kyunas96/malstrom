@@ -152,8 +152,8 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 /// Writes `merged` to a fresh temp file, verifies it against real Live, then
 /// force-kills Live regardless of outcome. Returns `"pass"`,
 /// `"dialog: <message>"`, or `"error: <message>"`. The temp file is deleted
-/// unless the result is a dialog or error -- Kevin will want to inspect
-/// those by hand.
+/// unless the result is a dialog or error, which are kept for inspecting
+/// by hand.
 fn phase_b(merged: &str) -> anyhow::Result<String> {
     // A fresh name every pair: a fixed name risks `open` refocusing a stale
     // window instead of loading this pair's actual content.
