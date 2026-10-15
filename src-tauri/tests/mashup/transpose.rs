@@ -68,6 +68,7 @@ fn moved(tracks: &str, semitones: Vec<i32>) -> String {
         &[Variation {
             name: "Var 1".to_string(),
             picks: vec![vec![0]],
+            ..Default::default()
         }],
     )
     .unwrap()
@@ -130,6 +131,7 @@ fn a_track_set_to_zero_is_unchanged() {
             &[Variation {
                 name: "Var 1".to_string(),
                 picks: vec![vec![0, 1]],
+                ..Default::default()
             }],
         )
         .unwrap()

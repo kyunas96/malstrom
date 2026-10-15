@@ -24,6 +24,19 @@ pub fn find_db_files(folder: &Path) -> Vec<PathBuf> {
     paths
 }
 
+/// Every `Live-files-*.db` in Live's default database folder on macOS,
+/// `~/Library/Application Support/Ableton/Live Database`. Empty when there
+/// is none, so callers fall back to name-based categorization.
+pub fn default_db_files() -> Vec<PathBuf> {
+    std::env::var_os("HOME")
+        .map(|home| {
+            find_db_files(
+                &Path::new(&home).join("Library/Application Support/Ableton/Live Database"),
+            )
+        })
+        .unwrap_or_default()
+}
+
 /// Looks up `filename`'s auto-tags in a Live Database (`Live-files-*.db`),
 /// opened read-only at `db_path`. Tags are rows in `files` themselves
 /// (e.g. "Kick", "One Shot"), joined to a content file via the `keywords`

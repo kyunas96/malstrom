@@ -234,6 +234,7 @@ pub async fn mashup_create(
         let variation = mashup::Variation {
             name: "Mashup".to_string(),
             picks: sources.iter().map(|s| s.track_indices.clone()).collect(),
+            ..Default::default()
         };
 
         let merged_xml =

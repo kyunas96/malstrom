@@ -48,17 +48,30 @@ pub fn key_shift(a: &ScaleCandidates, b: &ScaleCandidates) -> i32 {
         .0
 }
 
+/// The category of each of `doc`'s `non_return_tracks`, as `list_tracks`
+/// finds it: from the Live DB's tags when `live_db_paths` is non-empty,
+/// else from track names.
+pub fn track_categories(doc: &Document, live_db_paths: &[PathBuf]) -> Result<Vec<TrackCategory>> {
+    Ok(list_tracks(doc, live_db_paths)?
+        .iter()
+        .map(|t| t.category)
+        .collect())
+}
+
+/// Whether a track of `category` has a pitch to move: anything but drums
+/// and percussion.
+pub fn is_pitched(category: TrackCategory) -> bool {
+    !matches!(category, TrackCategory::Drums | TrackCategory::Percussion)
+}
+
 /// Semitones to move each of `b`'s `non_return_tracks` by to bring it into
-/// `a`'s key: `key_shift`, except 0 for drums and percussion (categorised as
-/// `list_tracks` does, with the Live DB when `live_db_paths` is non-empty).
+/// `a`'s key: `key_shift` for pitched tracks (see `is_pitched`), 0 for
+/// drums and percussion.
 pub fn track_semitones(a: &Document, b: &Document, live_db_paths: &[PathBuf]) -> Result<Vec<i32>> {
     let shift = key_shift(&extract_from_document(a)?, &extract_from_document(b)?);
-    Ok(list_tracks(b, live_db_paths)?
-        .iter()
-        .map(|t| match t.category {
-            TrackCategory::Drums | TrackCategory::Percussion => 0,
-            _ => shift,
-        })
+    Ok(track_categories(b, live_db_paths)?
+        .into_iter()
+        .map(|c| if is_pitched(c) { shift } else { 0 })
         .collect())
 }
 

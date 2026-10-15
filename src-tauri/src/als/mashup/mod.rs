@@ -5,7 +5,9 @@ pub mod diagnostics;
 mod ids;
 mod plan;
 mod sends;
+mod session;
 mod transpose;
+mod twist;
 
 use ids::{
     ensure_next_pointee_id_is_high_enough, max_referenced_id, shift_ids_in_block,
@@ -14,17 +16,13 @@ use ids::{
 pub use plan::plan_variations;
 use plan::{unit_tops, whole_units};
 use sends::{append_sends_pre, first_send_holder, pad_track_sends};
+use session::{clip_near, filled_rows, layout, rebuild_slots, scenes_xml, var_color, Row};
 use transpose::transpose_track;
-pub use transpose::{key_shift, track_semitones};
+pub use transpose::{is_pitched, key_shift, track_categories, track_semitones};
+use twist::{change_speed, clear_envelopes, recolor};
+pub use twist::{Speed, Twist, HEAT_LEVELS};
 
 use super::xml_edit::apply_edits;
-
-/// An empty Live 12 `GroupTrack` (no devices, no clips, `TrackGroupId -1`,
-/// an empty `<Sends />` for `pad_track_sends` to fill), cut from a real
-/// Live 12.2 set with its Ids renumbered from 1. Most projects have no group
-/// track of their own to clone, so each mashup variation's group comes from
-/// here.
-pub const GROUP_TRACK_TEMPLATE: &str = include_str!("../templates/group_track.xml");
 
 /// One source project's raw (decompressed) XML.
 pub struct MashupSource {
@@ -34,14 +32,17 @@ pub struct MashupSource {
     pub semitones: Vec<i32>,
 }
 
-/// One group in the mashup. `picks[s]` holds indices into source `s`'s
-/// `non_return_tracks` (the same order `categorize::list_tracks` returns).
-/// They must cover whole units: a top-level track plus every track grouped
-/// under it. A missing entry picks nothing from that source.
-#[derive(Debug, PartialEq)]
+/// One block of scenes in the mashup. `picks[s]` holds indices into source
+/// `s`'s `non_return_tracks` (the same order `categorize::list_tracks`
+/// returns): the tracks that play in this block. They must cover whole
+/// units: a top-level track plus every track grouped under it. A missing
+/// entry picks nothing from that source. `twist` applies to source 1 (B)
+/// only.
+#[derive(Debug, Default, PartialEq)]
 pub struct Variation {
     pub name: String,
     pub picks: Vec<Vec<usize>>,
+    pub twist: Twist,
 }
 
 /// The set's top-level `<Tracks>` list.
@@ -75,15 +76,6 @@ fn block_with_indent(xml: &str, node: &Node) -> String {
     xml[line_start..node.range().end].to_string()
 }
 
-/// A track's own `DeviceChain/AudioOutputRouting`.
-fn audio_output_routing<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a, 'input>> {
-    ["DeviceChain", "AudioOutputRouting"]
-        .iter()
-        .try_fold(track, |node, tag| {
-            node.children().find(|c| c.tag_name().name() == *tag)
-        })
-}
-
 fn child_value<'a, 'input>(
     node: Node<'a, 'input>,
     tag: &str,
@@ -93,81 +85,24 @@ fn child_value<'a, 'input>(
         .and_then(|c| c.attributes().find(|a| a.name() == "Value"))
 }
 
-/// Puts a unit's top-level track inside the group `group_id`: its
-/// `TrackGroupId` points at the group, and if it played to the main out it
-/// now plays into the group, as Live writes it (`AudioOut/GroupTrack`).
-fn into_group(block: &str, group_id: u64) -> Result<String> {
-    let doc = Document::parse(block)
-        .map_err(|e| anyhow!("XML parse error while grouping a track: {e}"))?;
-    let track = doc.root_element();
-    let mut edits = Vec::new();
-    if let Some(attr) = child_value(track, "TrackGroupId") {
-        edits.push((attr.range_value(), group_id.to_string()));
-    }
-    if let Some(routing) = audio_output_routing(track) {
-        if let Some(target) = child_value(routing, "Target")
-            .filter(|t| matches!(t.value(), "AudioOut/Main" | "AudioOut/Master"))
-        {
-            edits.push((target.range_value(), "AudioOut/GroupTrack".to_string()));
-            if let Some(display) = child_value(routing, "UpperDisplayString") {
-                edits.push((display.range_value(), "Group".to_string()));
-            }
-        }
-    }
-    Ok(apply_edits(block, edits))
-}
-
-/// A copy of `GROUP_TRACK_TEMPLATE` named `name`, with its ids shifted by
-/// `offset` (its own track Id becomes `offset`), playing to `main_out`, and
-/// with one send per return in the merged set, all turned down.
-fn group_block(
-    name: &str,
-    offset: u64,
-    main_out: &str,
-    total_returns: usize,
-    send_template: Option<&str>,
-    next_id: &mut u64,
-) -> Result<String> {
-    let block = shift_ids_in_block(GROUP_TRACK_TEMPLATE.trim_end(), offset)?;
-    let doc =
-        Document::parse(&block).map_err(|e| anyhow!("XML parse error in group template: {e}"))?;
-    let group = doc.root_element();
-    let name = name
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('"', "&quot;");
-    let name_node = group
-        .children()
-        .find(|c| c.tag_name().name() == "Name")
-        .ok_or_else(|| anyhow!("group template has no <Name>"))?;
-    let mut edits = Vec::new();
-    for tag in ["EffectiveName", "UserName"] {
-        let attr = child_value(name_node, tag)
-            .ok_or_else(|| anyhow!("group template has no Name/{tag}"))?;
-        edits.push((attr.range_value(), name.clone()));
-    }
-    let target = audio_output_routing(group)
-        .and_then(|r| child_value(r, "Target"))
-        .ok_or_else(|| anyhow!("group template has no AudioOutputRouting/Target"))?;
-    edits.push((target.range_value(), main_out.to_string()));
-    let block = apply_edits(&block, edits);
-    pad_track_sends(&block, 0, total_returns, send_template, next_id)
-}
-
-/// Builds one set holding a group per variation, each with the picked units
-/// from every source, A's then B's. Tempo, time signature and the master
-/// track come from `sources[0]`. Every source's return tracks are kept once,
-/// in source order, and every track's sends are padded so each one still
-/// feeds its own project's returns (see `pad_track_sends`). Returns the
-/// merged XML; callers decide where (and whether) to write it.
+/// Builds one set holding every track any variation picks, once each, A's
+/// then B's. Tempo, time signature and the master track come from
+/// `sources[0]`. Every source's return tracks are kept once, in source
+/// order, and every track's sends are padded so each one still feeds its
+/// own project's returns (see `pad_track_sends`). Returns the merged XML;
+/// callers decide where (and whether) to write it.
 ///
-/// Ids are only unique within one project, and a source can be copied into
-/// several variations, so every copy gets its own id range, sized to the
-/// source's highest id. Source 0's first copy keeps its own ids (they
-/// already fit around the rest of the base document). Every other source's
-/// first copy shares a range with that source's returns and `SendsPre`
-/// flags. Every later copy, every group and every padding send takes the
-/// next free ids above all of those.
+/// The Session View is laid out anew (see `layout`): each variation is a
+/// coloured block of scenes, a header named for it, one scene per section,
+/// then a gap. In a block's scenes every picked track plays its clip for
+/// that section (see `clip_near`), reworked by the variation's `twist`;
+/// tracks it doesn't pick stay silent. Arrangement clips are kept as they
+/// are.
+///
+/// Ids are only unique within one project, so every source after the first
+/// is shifted into its own id range, above the base document's ids and
+/// sized to the source's highest id. Padding sends take the next free ids
+/// above all of those.
 pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Result<String> {
     let base = sources
         .first()
@@ -179,6 +114,26 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         .iter()
         .map(|s| Document::parse(&s.xml).map_err(|e| anyhow!("XML parse error: {e}")))
         .collect::<Result<Vec<_>>>()?;
+    // The merged set keeps A's header, so Live reads B's devices with A's
+    // schema; Live 11 and 12 write some device values differently (e.g.
+    // Saturator's Oversampling as 0/1 vs false/true) and refuse the mix.
+    let live_version = |doc: &Document| {
+        doc.root_element()
+            .attribute("MinorVersion")
+            .and_then(|v| v.split('.').next())
+            .unwrap_or("")
+            .to_string()
+    };
+    if let Some(other) = docs[1..]
+        .iter()
+        .map(live_version)
+        .find(|v| *v != live_version(&docs[0]))
+    {
+        return Err(anyhow!(
+            "can't mash a Live {} set with a Live {other} set; save both in the same version first",
+            live_version(&docs[0])
+        ));
+    }
     let base_tracks = tracks_node(&docs[0])?;
     let source_tracks = docs
         .iter()
@@ -188,16 +143,32 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         .iter()
         .map(|t| unit_tops(t))
         .collect::<Result<Vec<_>>>()?;
-    // Live 11 calls the main out "Master", Live 12 "Main".
-    let main_out = if base.xml.contains("\"AudioOut/Master\"") {
-        "AudioOut/Master"
-    } else {
-        "AudioOut/Main"
-    };
+
+    // picks[v][s]: variation v's tracks from source s, checked whole.
+    let picks = variations
+        .iter()
+        .map(|v| {
+            if v.picks.len() > sources.len() {
+                return Err(anyhow!(
+                    "{} picks from {} sources but only {} were given",
+                    v.name,
+                    v.picks.len(),
+                    sources.len()
+                ));
+            }
+            let picks = (0..sources.len())
+                .map(|s| whole_units(v.picks.get(s).map_or(&[], |p| p), &tops[s]))
+                .collect::<Result<Vec<_>>>()?;
+            if picks.iter().all(|p| p.is_empty()) {
+                return Err(anyhow!("{} picks no tracks", v.name));
+            }
+            Ok(picks)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let sections = [0, 1].map(|s| source_tracks.get(s).map_or(vec![], |t| filled_rows(t)));
+    let rows = layout(&sections, variations);
 
     let spans: Vec<u64> = docs.iter().map(|d| max_referenced_id(d) + 1).collect();
-    let group_span =
-        max_referenced_id(&Document::parse(GROUP_TRACK_TEMPLATE).map_err(|e| anyhow!("{e}"))?) + 1;
     let mut next_id = spans[0];
     let mut home = vec![0];
     for span in &spans[1..] {
@@ -226,75 +197,81 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         })
         .collect();
 
-    let prepare =
-        |s: usize, node: Node, semitones: i32, offset: u64, next_id: &mut u64| -> Result<String> {
-            let block = transpose_track(&block_with_indent(&sources[s].xml, &node), semitones)?;
-            let block = if s > 0 {
-                strip_groove_references(&block)?
-            } else {
-                block
-            };
-            let block = shift_ids_in_block(&block, offset)?;
-            let after = total_returns - befores[s] - return_counts[s];
-            let block =
-                pad_track_sends(&block, befores[s], after, send_template.as_deref(), next_id)?;
-            Ok(format!("\n{block}"))
+    let prepare = |s: usize, block: String, offset: u64, next_id: &mut u64| -> Result<String> {
+        let block = if s > 0 {
+            strip_groove_references(&block)?
+        } else {
+            block
         };
+        let block = shift_ids_in_block(&block, offset)?;
+        let after = total_returns - befores[s] - return_counts[s];
+        let block = pad_track_sends(&block, befores[s], after, send_template.as_deref(), next_id)?;
+        Ok(format!("\n{block}"))
+    };
 
     let mut body = String::new();
-    let mut copies = vec![0usize; sources.len()];
-    for variation in variations {
-        if variation.picks.len() > sources.len() {
-            return Err(anyhow!(
-                "{} picks from {} sources but only {} were given",
-                variation.name,
-                variation.picks.len(),
-                sources.len()
-            ));
-        }
-        let picks = (0..sources.len())
-            .map(|s| whole_units(variation.picks.get(s).map_or(&[], |p| p), &tops[s]))
-            .collect::<Result<Vec<_>>>()?;
-        if picks.iter().all(|p| p.is_empty()) {
-            return Err(anyhow!("{} picks no tracks", variation.name));
-        }
-
-        let group_id = next_id;
-        next_id += group_span;
-        body.push('\n');
-        body.push_str(&group_block(
-            &variation.name,
-            group_id,
-            main_out,
-            total_returns,
-            send_template.as_deref(),
-            &mut next_id,
-        )?);
-
-        for (s, picks) in picks.iter().enumerate().filter(|(_, p)| !p.is_empty()) {
-            let offset = if copies[s] == 0 {
-                home[s]
-            } else {
-                next_id += spans[s];
-                next_id - spans[s]
-            };
-            copies[s] += 1;
-            for &idx in picks {
-                let semitones = sources[s].semitones.get(idx).copied().unwrap_or(0);
-                let block = prepare(s, source_tracks[s][idx], semitones, offset, &mut next_id)?;
-                body.push_str(&if tops[s][idx] == idx {
-                    into_group(&block, group_id)?
-                } else {
-                    block
-                });
+    for (s, tracks) in source_tracks.iter().enumerate() {
+        for (idx, node) in tracks.iter().enumerate() {
+            if !picks.iter().any(|p| p[s].contains(&idx)) {
+                continue;
             }
+            let semitones = sources[s].semitones.get(idx).copied().unwrap_or(0);
+            let block = transpose_track(&block_with_indent(&sources[s].xml, node), semitones)?;
+            let doc = Document::parse(&block)
+                .map_err(|e| anyhow!("XML parse error while laying out a track: {e}"))?;
+            let track = doc.root_element();
+            let values = rows
+                .iter()
+                .map(|row| -> Result<String> {
+                    let empty = || Ok("<Value />".to_string());
+                    let &Row::Play { var, rows: at } = row else {
+                        return empty();
+                    };
+                    if !picks[var][s].contains(&idx) {
+                        return empty();
+                    }
+                    let twist = &variations[var].twist;
+                    // A swapped track plays A's clip as A wrote it, so it
+                    // skips B's pitch and speed changes.
+                    let value = match twist.swap.filter(|&(b, _)| s == 1 && b == idx) {
+                        Some((_, a)) => {
+                            let donor = source_tracks[0].get(a).ok_or_else(|| {
+                                anyhow!(
+                                    "{} swaps in A's track {a}, which doesn't exist",
+                                    variations[var].name
+                                )
+                            })?;
+                            let Some(clip) = at[0].and_then(|r| clip_near(*donor, r)) else {
+                                return empty();
+                            };
+                            clear_envelopes(&sources[0].xml[clip.range()])?
+                        }
+                        None => {
+                            let Some(clip) = at[s.min(1)].and_then(|r| clip_near(track, r)) else {
+                                return empty();
+                            };
+                            let clip = &block[clip.range()];
+                            if s == 1 {
+                                let extra = twist.semitones.get(idx).copied().unwrap_or(0);
+                                change_speed(&transpose_track(clip, extra)?, twist.speed)?
+                            } else {
+                                clip.to_string()
+                            }
+                        }
+                    };
+                    recolor(&value, var_color(var))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let block = rebuild_slots(&block, &values)?;
+            body.push_str(&prepare(s, block, home[s], &mut next_id)?);
         }
     }
 
     let mut donor_sends_pre = String::new();
     for (s, doc) in docs.iter().enumerate() {
         for node in return_tracks(doc)? {
-            body.push_str(&prepare(s, node, 0, home[s], &mut next_id)?);
+            let block = block_with_indent(&sources[s].xml, &node);
+            body.push_str(&prepare(s, block, home[s], &mut next_id)?);
         }
         if s == 0 {
             continue;
@@ -313,10 +290,32 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         }
     }
 
-    let mut merged = String::with_capacity(base.xml.len());
-    merged.push_str(&base.xml[..base_tracks.range().start]);
-    merged.push_str(&format!("<Tracks>{body}\n\t\t</Tracks>"));
-    merged.push_str(&base.xml[base_tracks.range().end..]);
+    let mut edits = vec![(
+        base_tracks.range(),
+        format!("<Tracks>{body}\n\t\t</Tracks>"),
+    )];
+    let scenes = docs[0]
+        .root_element()
+        .children()
+        .flat_map(|n| n.children())
+        .find(|n| n.tag_name().name() == "Scenes");
+    if let Some(scenes) = scenes {
+        if let Some(first) = scenes.children().find(|n| n.is_element()) {
+            let name = |row: &Row| match *row {
+                Row::Header(var) => format!("━━ {} ━━", variations[var].name),
+                Row::Play { var, rows: at } => {
+                    let side = |s: usize, label: &str| at[s].map(|r| format!("{label}{}", r + 1));
+                    let parts: Vec<String> =
+                        [side(0, "A"), side(1, "B")].into_iter().flatten().collect();
+                    format!("Var {} · {}", var + 1, parts.join(" × "))
+                }
+                Row::Gap => String::new(),
+            };
+            let template = &base.xml[first.range()];
+            edits.push((scenes.range(), scenes_xml(template, &rows, name)?));
+        }
+    }
+    let mut merged = apply_edits(&base.xml, edits);
 
     append_sends_pre(&mut merged, &donor_sends_pre)?;
     ensure_next_pointee_id_is_high_enough(&mut merged)?;

@@ -17,7 +17,7 @@ fn plan(n: usize, seed: u64) -> Vec<Variation> {
         roxmltree::Document::parse(&a).unwrap(),
         roxmltree::Document::parse(&b).unwrap(),
     ];
-    plan_variations(&docs, n, seed).unwrap()
+    plan_variations(&docs, &[], n, 1, seed).unwrap()
 }
 
 #[test]
@@ -75,6 +75,9 @@ fn variations_outside_one_to_six_are_rejected() {
     let a = source_with_nested_groups();
     let docs = [roxmltree::Document::parse(&a).unwrap()];
     for n in [0, 7] {
-        assert!(plan_variations(&docs, n, 1).is_err());
+        assert!(plan_variations(&docs, &[], n, 1, 1).is_err());
+    }
+    for heat in [0, 6] {
+        assert!(plan_variations(&docs, &[], 2, heat, 1).is_err());
     }
 }

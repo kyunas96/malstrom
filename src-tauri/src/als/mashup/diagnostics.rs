@@ -64,6 +64,25 @@ pub fn check(xml: &str) -> Vec<String> {
             }
         }
 
+        // Every track needs one Session slot per scene.
+        let scene_count = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "Scenes")
+            .map(|s| s.children().filter(|n| n.is_element()).count());
+        if let Some(scene_count) = scene_count {
+            for track in tracks_node.children().filter(|n| n.is_element()) {
+                let slots = super::session::session_slots(track);
+                if !slots.is_empty() && slots.len() != scene_count {
+                    problems.push(format!(
+                        "{} Id={} has {} clip slots but the set has {scene_count} scenes",
+                        track.tag_name().name(),
+                        track.attribute("Id").unwrap_or("?"),
+                        slots.len()
+                    ));
+                }
+            }
+        }
+
         // Sends match returns by position, so every track (returns
         // included) needs exactly one per return, as does SendsPre.
         let return_count = tracks_node

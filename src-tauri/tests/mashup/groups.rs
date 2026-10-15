@@ -1,34 +1,5 @@
 use super::*;
 
-#[test]
-fn group_track_template_is_an_empty_top_level_group() {
-    let doc = roxmltree::Document::parse(GROUP_TRACK_TEMPLATE).unwrap();
-    let group = doc.root_element();
-    assert_eq!(group.tag_name().name(), "GroupTrack");
-    let child = |path: &[&str]| {
-        path.iter().try_fold(group, |n, tag| {
-            n.children().find(|c| c.tag_name().name() == *tag)
-        })
-    };
-    assert_eq!(
-        child(&["TrackGroupId"]).unwrap().attribute("Value"),
-        Some("-1")
-    );
-    for path in [
-        &["DeviceChain", "Mixer", "Sends"][..],
-        &["DeviceChain", "DeviceChain", "Devices"],
-    ] {
-        assert_eq!(
-            child(path)
-                .unwrap()
-                .children()
-                .filter(|n| n.is_element())
-                .count(),
-            0
-        );
-    }
-}
-
 fn two_sources_with_a_return_each() -> Vec<MashupSource> {
     let a_xml = project_xml_with_sends_pre(
         &format!(
@@ -62,6 +33,7 @@ fn variation(name: &str, picks: Vec<Vec<usize>>) -> Variation {
     Variation {
         name: name.to_string(),
         picks,
+        ..Default::default()
     }
 }
 
@@ -106,7 +78,7 @@ fn track_rows(merged: &str) -> Vec<TrackRow> {
 }
 
 #[test]
-fn copying_a_source_three_times_keeps_ids_unique_and_returns_once() {
+fn a_track_picked_by_every_variation_is_in_the_set_once() {
     let merged = build_mashup(
         &two_sources_with_a_return_each(),
         &[
@@ -150,8 +122,10 @@ fn copying_a_source_three_times_keeps_ids_unique_and_returns_once() {
             })
             .collect()
     };
-    assert_eq!(sends_of("Drums A"), vec![vec!["0.5", OFF]; 3]);
-    assert_eq!(sends_of("Lead B"), vec![vec![OFF, "0.7"]; 3]);
+    assert_eq!(sends_of("Drums A"), vec![vec!["0.5", OFF]]);
+    assert_eq!(sends_of("Lead B"), vec![vec![OFF, "0.7"]]);
+    let names: Vec<&str> = rows.iter().map(|r| r.3.as_str()).collect();
+    assert_eq!(names, ["Drums A", "Lead B", "A-Rev", "B-Rev"]);
 
     let mut target_ids: Vec<&str> = doc
         .descendants()
@@ -161,15 +135,15 @@ fn copying_a_source_three_times_keeps_ids_unique_and_returns_once() {
     let total = target_ids.len();
     target_ids.sort();
     target_ids.dedup();
-    assert_eq!(target_ids.len(), total, "two copies share an automation id");
+    assert_eq!(target_ids.len(), total, "two tracks share an automation id");
 }
 
 #[test]
-fn each_variation_is_one_group_holding_its_picked_tracks() {
+fn only_tracks_some_variation_picks_are_in_the_set_and_no_groups_are_added() {
     let merged = build_mashup(
         &two_sources_with_a_return_each(),
         &[
-            variation("Var 1", vec![vec![0], vec![0]]),
+            variation("Var 1", vec![vec![0]]),
             variation("Var 2", vec![vec![0]]),
         ],
     )
@@ -177,36 +151,14 @@ fn each_variation_is_one_group_holding_its_picked_tracks() {
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 
     let rows = track_rows(&merged);
-    let groups: Vec<&TrackRow> = rows.iter().filter(|r| r.0 == "GroupTrack").collect();
-    assert_eq!(groups.len(), 2);
-    for (group, name) in groups.iter().zip(["Var 1", "Var 2"]) {
-        assert_eq!(group.2, "-1");
-        assert_eq!(group.3, name);
-        assert_eq!(group.4, "AudioOut/Main");
-        assert_eq!(group.5, 2, "one send per return");
-    }
-
-    let mut current_group = "";
-    let mut members: Vec<(String, &str)> = Vec::new();
-    for row in rows.iter().filter(|r| r.0 != "ReturnTrack") {
-        if row.0 == "GroupTrack" {
-            current_group = &row.1;
-            continue;
-        }
-        assert_eq!(
-            row.2, current_group,
-            "{} is not in its variation's group",
-            row.3
-        );
-        assert_eq!(row.4, "AudioOut/GroupTrack");
-        members.push((row.3.clone(), current_group));
-    }
-    let names: Vec<&str> = members.iter().map(|m| m.0.as_str()).collect();
-    assert_eq!(names, ["Drums A", "Lead B", "Drums A"]);
+    let names: Vec<&str> = rows.iter().map(|r| r.3.as_str()).collect();
+    assert_eq!(names, ["Drums A", "A-Rev", "B-Rev"]);
+    assert_eq!(rows[0].2, "-1");
+    assert_eq!(rows[0].4, "AudioOut/Main");
 }
 
 #[test]
-fn a_nested_group_is_copied_whole_and_keeps_its_own_grouping() {
+fn a_nested_group_is_kept_whole_with_its_own_grouping() {
     let merged = build_mashup(
         &[MashupSource {
             xml: source_with_nested_groups(),
@@ -221,29 +173,21 @@ fn a_nested_group_is_copied_whole_and_keeps_its_own_grouping() {
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 
     let rows = track_rows(&merged);
-    let id_of = |name: &str, nth: usize| -> &str {
-        &rows.iter().filter(|r| r.3 == name).nth(nth).unwrap().1
-    };
-    let group_of = |name: &str, nth: usize| -> &str {
-        &rows.iter().filter(|r| r.3 == name).nth(nth).unwrap().2
-    };
-    for nth in 0..2 {
-        assert_eq!(group_of("In Outer", nth), id_of("Outer", nth));
-        assert_eq!(group_of("Inner", nth), id_of("Outer", nth));
-        assert_eq!(group_of("In Inner", nth), id_of("Inner", nth));
-        assert_eq!(group_of("Outer", nth), id_of(["Var 1", "Var 2"][nth], 0));
-    }
-    let var2: Vec<&str> = rows
+    let id_of = |name: &str| -> &str { &rows.iter().find(|r| r.3 == name).unwrap().1 };
+    let group_of = |name: &str| -> &str { &rows.iter().find(|r| r.3 == name).unwrap().2 };
+    assert_eq!(group_of("Outer"), "-1");
+    assert_eq!(group_of("In Outer"), id_of("Outer"));
+    assert_eq!(group_of("Inner"), id_of("Outer"));
+    assert_eq!(group_of("In Inner"), id_of("Inner"));
+    let names: Vec<&str> = rows
         .iter()
-        .skip_while(|r| r.3 != "Var 2")
-        .skip(1)
         .take_while(|r| r.0 != "ReturnTrack")
         .map(|r| r.3.as_str())
         .collect();
     assert_eq!(
-        var2,
+        names,
         ["Outer", "In Outer", "Inner", "In Inner", "Alone"],
-        "a unit's tracks keep their original order"
+        "every track once, in its original order"
     );
 }
 

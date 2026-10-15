@@ -3,15 +3,18 @@
 //! reports both the fast structural check and real-Live verification
 //! results to a resumable JSONL report.
 //!
-//! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl] [--variations n]
+//! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl] [--variations n] [--heat h]
 //!
 //! Variations are planned with a fixed seed (`SEED`), so re-runs are
-//! reproducible. Every pair line records n and the seed, and resuming only
-//! skips pairs already done at the same n. B is moved into A's key, as the
-//! app does, with drums found by track name only.
+//! reproducible. Every pair line records n, the heat and the seed, and
+//! resuming only skips pairs already done at the same n and heat. B is moved into A's key, as the
+//! app does, with tracks categorised from Live's database in its default
+//! folder, by track name where it has no tags.
 
+use malstrom_lib::als::livedb::default_db_files;
 use malstrom_lib::als::mashup::{
-    build_mashup, diagnostics, plan_variations, track_semitones, MashupSource,
+    build_mashup, diagnostics, plan_variations, track_categories, track_semitones, MashupSource,
+    HEAT_LEVELS,
 };
 use malstrom_lib::als::output_path::{scan_als_files, write_als, LIVE_12_UPGRADE_DIR};
 use malstrom_lib::als::AlsInspector;
@@ -39,8 +42,21 @@ fn main() -> ExitCode {
         }
         args.drain(i..i + 2);
     }
+    let mut heat = 1;
+    if let Some(i) = args.iter().position(|a| a == "--heat") {
+        match args.get(i + 1).and_then(|n| n.parse().ok()) {
+            Some(h) if (1..=HEAT_LEVELS.len()).contains(&h) => heat = h,
+            _ => {
+                eprintln!("--heat takes a number from 1 to {}", HEAT_LEVELS.len());
+                return ExitCode::FAILURE;
+            }
+        }
+        args.drain(i..i + 2);
+    }
     let Some(root) = args.first() else {
-        eprintln!("usage: mashup_batch_test <root-dir> [report-path.jsonl] [--variations n]");
+        eprintln!(
+            "usage: mashup_batch_test <root-dir> [report-path.jsonl] [--variations n] [--heat h]"
+        );
         return ExitCode::FAILURE;
     };
     let root = PathBuf::from(root);
@@ -49,7 +65,7 @@ fn main() -> ExitCode {
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("mashup-batch-report.jsonl"));
 
-    match run(&root, &report_path, variations) {
+    match run(&root, &report_path, variations, heat) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -58,7 +74,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(root: &Path, report_path: &Path, variations: usize) -> anyhow::Result<()> {
+fn run(root: &Path, report_path: &Path, variations: usize, heat: usize) -> anyhow::Result<()> {
     // In case a previous run was killed mid-batch with Live left open.
     force_kill_live();
 
@@ -98,14 +114,14 @@ fn run(root: &Path, report_path: &Path, variations: usize) -> anyhow::Result<()>
         for j in (i + 1)..loaded.len() {
             let (a_key, a_xml) = &loaded[i];
             let (b_key, b_xml) = &loaded[j];
-            let pair_key = format!("{a_key}|{b_key}|{variations}");
+            let pair_key = format!("{a_key}|{b_key}|{variations}|{heat}");
             done += 1;
             if done_pairs.contains(&pair_key) {
                 continue;
             }
             print!("[{done}/{total_pairs}] {a_key} + {b_key} ... ");
             let _ = std::io::stdout().flush();
-            process_pair(&mut report, a_key, a_xml, b_key, b_xml, variations)?;
+            process_pair(&mut report, a_key, a_xml, b_key, b_xml, variations, heat)?;
         }
     }
 
@@ -123,16 +139,18 @@ fn process_pair(
     b_key: &str,
     b_xml: &str,
     variations: usize,
+    heat: usize,
 ) -> anyhow::Result<()> {
     // Every line starts with the pair and how it was planned.
     let mut line = |extra: Value| {
-        let mut value = json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED});
+        let mut value =
+            json!({"a": a_key, "b": b_key, "variations": variations, "heat": heat, "seed": SEED});
         if let (Some(base), Value::Object(extra)) = (value.as_object_mut(), extra) {
             base.extend(extra);
         }
         append_line(report, &value)
     };
-    let (merged, problems) = match phase_a(a_xml, b_xml, variations) {
+    let (merged, problems) = match phase_a(a_xml, b_xml, variations, heat) {
         Err(panic_payload) => {
             let msg = panic_message(&panic_payload);
             println!("PANIC: {msg}");
@@ -167,9 +185,11 @@ fn phase_a(
     a_xml: &str,
     b_xml: &str,
     variations: usize,
+    heat: usize,
 ) -> std::thread::Result<anyhow::Result<(String, Vec<String>)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let docs = [Document::parse(a_xml)?, Document::parse(b_xml)?];
+        let live_db = default_db_files();
         let merged = build_mashup(
             &[
                 MashupSource {
@@ -178,10 +198,19 @@ fn phase_a(
                 },
                 MashupSource {
                     xml: b_xml.to_string(),
-                    semitones: track_semitones(&docs[0], &docs[1], &[])?,
+                    semitones: track_semitones(&docs[0], &docs[1], &live_db)?,
                 },
             ],
-            &plan_variations(&docs, variations, SEED)?,
+            &plan_variations(
+                &docs,
+                &[
+                    track_categories(&docs[0], &live_db)?,
+                    track_categories(&docs[1], &live_db)?,
+                ],
+                variations,
+                heat,
+                SEED,
+            )?,
         )?;
         let problems = diagnostics::check(&merged);
         Ok((merged, problems))
@@ -400,7 +429,8 @@ fn load_done_pairs(report_path: &Path) -> anyhow::Result<HashSet<String>> {
                     value.get("b").and_then(Value::as_str),
                 ) {
                     let variations = value.get("variations").and_then(Value::as_u64).unwrap_or(1);
-                    done.insert(format!("{a}|{b}|{variations}"));
+                    let heat = value.get("heat").and_then(Value::as_u64).unwrap_or(1);
+                    done.insert(format!("{a}|{b}|{variations}|{heat}"));
                 }
             }
             Err(e) => eprintln!("warning: dropping unparseable report line {}: {e}", i + 1),

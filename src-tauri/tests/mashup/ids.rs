@@ -160,6 +160,7 @@ fn a_huge_lom_id_does_not_size_the_id_ranges() {
         .map(|i| Variation {
             name: format!("Var {i}"),
             picks: vec![vec![0], vec![0]],
+            ..Default::default()
         })
         .collect();
 

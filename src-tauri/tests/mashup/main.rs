@@ -1,5 +1,5 @@
 use malstrom_lib::als::mashup::{
-    build_mashup, diagnostics, plan_variations, MashupSource, Variation, GROUP_TRACK_TEMPLATE,
+    build_mashup, diagnostics, plan_variations, MashupSource, Variation,
 };
 
 mod checks;
@@ -8,6 +8,7 @@ mod ids;
 mod plan;
 mod sends;
 mod transpose;
+mod twist;
 
 /// One variation picking `indices` from each source.
 fn mash(sources: Vec<(String, Vec<usize>)>) -> anyhow::Result<String> {
@@ -24,6 +25,7 @@ fn mash(sources: Vec<(String, Vec<usize>)>) -> anyhow::Result<String> {
         &[Variation {
             name: "Var 1".to_string(),
             picks,
+            ..Default::default()
         }],
     )
 }
@@ -162,4 +164,29 @@ fn source_with_nested_groups() -> String {
         .concat(),
         1,
     )
+}
+
+#[test]
+fn sets_from_different_live_versions_are_refused() {
+    let set = |version: &str| {
+        project_xml(&midi_track("T")).replacen(
+            r#"MajorVersion="5""#,
+            &format!(r#"MajorVersion="5" MinorVersion="{version}""#),
+            1,
+        )
+    };
+    let err = mash(vec![
+        (set("11.0_11300"), vec![0]),
+        (set("12.0_12203"), vec![0]),
+    ])
+    .unwrap_err();
+    assert!(
+        err.to_string().contains("Live 11 set with a Live 12"),
+        "{err}"
+    );
+    assert!(mash(vec![
+        (set("12.0_12203"), vec![0]),
+        (set("12.0_12100"), vec![0])
+    ])
+    .is_ok());
 }
