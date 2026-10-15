@@ -121,39 +121,35 @@ fn process_pair(
     b_xml: &str,
     variations: usize,
 ) -> anyhow::Result<()> {
+    // Every line starts with the pair and how it was planned.
+    let mut line = |extra: Value| {
+        let mut value = json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED});
+        if let (Some(base), Value::Object(extra)) = (value.as_object_mut(), extra) {
+            base.extend(extra);
+        }
+        append_line(report, &value)
+    };
     let (merged, problems) = match phase_a(a_xml, b_xml, variations) {
         Err(panic_payload) => {
             let msg = panic_message(&panic_payload);
             println!("PANIC: {msg}");
-            return append_line(
-                report,
-                &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "error": format!("panicked: {msg}")}),
-            );
+            return line(json!({"error": format!("panicked: {msg}")}));
         }
         Ok(Err(e)) => {
             println!("ERROR: {e}");
-            return append_line(
-                report,
-                &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "error": e.to_string()}),
-            );
+            return line(json!({"error": e.to_string()}));
         }
         Ok(Ok(pair)) => pair,
     };
 
     if !problems.is_empty() {
         println!("structurally unsound ({} problem(s))", problems.len());
-        return append_line(
-            report,
-            &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "structural_problems": problems}),
-        );
+        return line(json!({"structural_problems": problems}));
     }
 
     let live_result = phase_b(&merged)?;
     println!("{live_result}");
-    append_line(
-        report,
-        &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "structural_problems": Vec::<String>::new(), "live_result": live_result}),
-    )
+    line(json!({"structural_problems": Vec::<String>::new(), "live_result": live_result}))
 }
 
 /// The structural half of one pair's check, isolated in `catch_unwind`: the

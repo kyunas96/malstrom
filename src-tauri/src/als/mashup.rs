@@ -384,18 +384,6 @@ fn whole_units(picks: &[usize], tops: &[usize]) -> Result<Vec<usize>> {
     Ok(picks)
 }
 
-/// SplitMix64: small, fast and good enough to pick tracks, so no crate.
-struct SplitMix64(u64);
-
-impl SplitMix64 {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let z = (self.0 ^ (self.0 >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-}
-
 /// `n` variations (1 to 6) over `sources`. Var 1 picks every unit. Each
 /// later one keeps every unit with a 50% chance, but always at least one
 /// unit from each source that has any, and is redrawn (up to 20 times) if
@@ -422,23 +410,31 @@ pub fn plan_variations(sources: &[Document], n: usize, seed: u64) -> Result<Vec<
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let mut rng = SplitMix64(seed);
+    // SplitMix64: small, fast and good enough to pick tracks, so no crate.
+    let mut state = seed;
+    let mut next = || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let z = (state ^ (state >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    };
     let mut draw = || -> Vec<Vec<usize>> {
         units
             .iter()
             .map(|source_units| {
                 let mut kept: Vec<usize> = (0..source_units.len())
-                    .filter(|_| rng.next() & 1 == 1)
+                    .filter(|_| next() & 1 == 1)
                     .collect();
                 if kept.is_empty() && !source_units.is_empty() {
-                    kept.push((rng.next() % source_units.len() as u64) as usize);
+                    kept.push((next() % source_units.len() as u64) as usize);
                 }
-                kept
+                kept.iter()
+                    .flat_map(|&u| source_units[u].iter().copied())
+                    .collect()
             })
             .collect()
     };
-    let mut plans: Vec<Vec<Vec<usize>>> =
-        vec![units.iter().map(|u| (0..u.len()).collect()).collect()];
+    let mut plans: Vec<Vec<Vec<usize>>> = vec![units.iter().map(|u| u.concat()).collect()];
     while plans.len() < n {
         let mut plan = draw();
         for _ in 0..20 {
@@ -453,17 +449,9 @@ pub fn plan_variations(sources: &[Document], n: usize, seed: u64) -> Result<Vec<
     Ok(plans
         .into_iter()
         .enumerate()
-        .map(|(i, plan)| Variation {
+        .map(|(i, picks)| Variation {
             name: format!("Var {}", i + 1),
-            picks: plan
-                .iter()
-                .zip(&units)
-                .map(|(kept, source_units)| {
-                    kept.iter()
-                        .flat_map(|&u| source_units[u].iter().copied())
-                        .collect()
-                })
-                .collect(),
+            picks,
         })
         .collect())
 }
