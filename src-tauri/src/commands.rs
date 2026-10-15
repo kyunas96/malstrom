@@ -225,14 +225,16 @@ pub async fn mashup_create(
                     .map_err(|e| e.to_string())?
                     .raw_xml()
                     .to_string();
-                Ok(mashup::MashupSource {
-                    xml,
-                    track_indices: s.track_indices.clone(),
-                })
+                Ok(mashup::MashupSource { xml })
             })
             .collect::<Result<Vec<_>, String>>()?;
+        let variation = mashup::Variation {
+            name: "Mashup".to_string(),
+            picks: sources.iter().map(|s| s.track_indices.clone()).collect(),
+        };
 
-        let merged_xml = mashup::build_mashup(&mashup_sources).map_err(|e| e.to_string())?;
+        let merged_xml =
+            mashup::build_mashup(&mashup_sources, &[variation]).map_err(|e| e.to_string())?;
 
         let base_path = std::path::Path::new(&sources[0].path);
         let dest_path = output_path::named_output_path(base_path, &file_name);
