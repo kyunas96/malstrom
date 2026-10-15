@@ -150,7 +150,9 @@ fn draw_twist(
 /// one side's are dropped. Above heat 1 each later variation also gets a
 /// `Twist` of B (see `HEAT_LEVELS`). `categories[s]` holds source s's
 /// track categories (see `track_categories`); a missing one counts as
-/// unpitched and roleless. The same seed and heat always give the same plan.
+/// unpitched and roleless. Each later variation also pairs every picked,
+/// pitched B MIDI track with one of A's (see `Variation::partners`). The
+/// same seed and heat always give the same plan.
 pub fn plan_variations(
     sources: &[Document],
     categories: &[Vec<TrackCategory>],
@@ -320,6 +322,23 @@ pub fn plan_variations(
             },
             picks,
             twist,
+            partners: vec![],
+        });
+    }
+    // Partners come from their own stream, so the picks and twists above
+    // stay the same whichever stages run.
+    let mut rng = Rng(seed ^ 0x9e37_79b9_7f4a_7c15);
+    let is = |flags: &[Vec<bool>], i: usize| flags.get(1).and_then(|f| f.get(i)) == Some(&true);
+    for v in &mut variations[1..] {
+        if donors.is_empty() {
+            break;
+        }
+        v.partners = v.picks.get(1).map_or(vec![], |p| {
+            p.iter()
+                .copied()
+                .filter(|&b| is(pitched, b) && is(&midi, b))
+                .map(|b| (b, donors[rng.below(donors.len())]))
+                .collect()
         });
     }
     Ok(variations)

@@ -1,10 +1,14 @@
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 
+mod cast;
+mod cutup;
 pub mod diagnostics;
+mod fuse;
 mod ids;
 mod layering;
 mod medley;
+mod notes;
 pub mod pipeline;
 mod plan;
 mod sends;
@@ -47,6 +51,9 @@ pub struct Variation {
     pub name: String,
     pub picks: Vec<Vec<usize>>,
     pub twist: Twist,
+    /// `(b, a)`: B's track `b` is paired with A's track `a`, for the
+    /// stages that mix the two (cast, cutup, fuse).
+    pub partners: Vec<(usize, usize)>,
 }
 
 /// The set's top-level `<Tracks>` list.

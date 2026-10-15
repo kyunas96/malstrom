@@ -10,7 +10,8 @@
 //! tracks it has no tags for fall back to their names.
 //!
 //! `--pipeline` names the stages that build the Session View, in order
-//! (see `pipeline.rs`). The default is `layering,twist`.
+//! (see `pipeline.rs`), e.g. `medley,cast,twist`. The default is
+//! `layering,twist`.
 //!
 //! Usage: cargo run --bin mashup -- A.als B.als -o out.als [--variations n] [--heat h] [--seed s]
 //!        [--pipeline stages] [--no-transpose] [--live-db DIR]

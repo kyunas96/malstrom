@@ -1,7 +1,7 @@
 //! A mashup as a pipeline: a list of stages run in order over one `Mix`.
 //! Each paradigm is a module with one stage, and every stage has the same
 //! interface, so a pipeline is composed by naming stages, e.g.
-//! `layering,twist`.
+//! `medley,cast,twist`.
 //!
 //! A layout stage (`layering` or `medley`) goes first. It decides which of
 //! A's and B's sections each scene plays, and fills every picked track's
@@ -12,6 +12,9 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, Result};
 use roxmltree::Document;
 
+use super::cast::Cast;
+use super::cutup::CutUp;
+use super::fuse::Fuse;
 use super::layering::Layering;
 use super::medley::Medley;
 use super::session::clip_near;
@@ -35,9 +38,12 @@ pub fn parse_pipeline(names: &str) -> Result<Vec<Box<dyn Stage>>> {
                 "layering" => Box::new(Layering),
                 "medley" => Box::new(Medley),
                 "twist" => Box::new(TwistStage),
+                "cast" => Box::new(Cast),
+                "cutup" => Box::new(CutUp),
+                "fuse" => Box::new(Fuse),
                 other => {
                     return Err(anyhow!(
-                        "no stage called {other:?}; stages are layering, medley, twist"
+                        "no stage called {other:?}; stages are layering, medley, twist, cast, cutup, fuse"
                     ))
                 }
             })
@@ -151,5 +157,33 @@ impl<'v> Mix<'v> {
             })
             .collect();
         self.blocks[var] = Block { rows, slots };
+    }
+
+    /// Runs `mix(own, partner)` on every slot of every partnered B track
+    /// (see `Variation::partners`) whose A partner plays in that scene.
+    /// `own` is the slot as earlier stages left it.
+    pub fn rework_partnered(
+        &mut self,
+        mix: impl Fn(Option<&str>, &str) -> Result<Option<String>>,
+    ) -> Result<()> {
+        for (var, v) in self.variations.iter().enumerate() {
+            for &(b, a) in &v.partners {
+                let block = &self.blocks[var];
+                let partners: Vec<Option<String>> = block
+                    .rows
+                    .iter()
+                    .map(|r| self.clip(0, a, r[0]).map(str::to_string))
+                    .collect();
+                let Some(slots) = self.blocks[var].slots.get_mut(&(1, b)) else {
+                    continue;
+                };
+                for (slot, partner) in slots.iter_mut().zip(&partners) {
+                    if let Some(partner) = partner {
+                        *slot = mix(slot.as_deref(), partner)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }

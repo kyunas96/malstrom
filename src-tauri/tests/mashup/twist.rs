@@ -44,6 +44,7 @@ fn var(n: usize, picks: Vec<Vec<usize>>, twist: Twist) -> Variation {
         name: format!("Var {n}"),
         picks,
         twist,
+        ..Default::default()
     }
 }
 

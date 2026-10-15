@@ -126,7 +126,7 @@ fn clips<'a, 'i>(doc: &'a Document<'i>) -> impl Iterator<Item = Node<'a, 'i>> {
 
 /// `value` with its clip envelopes cleared, for a clip moving to another
 /// track: they point at its old track's devices.
-fn clear_envelopes(value: &str) -> Result<String> {
+pub(super) fn clear_envelopes(value: &str) -> Result<String> {
     let doc = parse(value)?;
     let edits = doc
         .descendants()
