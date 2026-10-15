@@ -4,17 +4,19 @@
 //! results to a resumable JSONL report.
 //!
 //! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl] [--variations n] [--heat h]
+//!        [--pipeline stages]
 //!
 //! Variations are planned with a fixed seed (`SEED`), so re-runs are
-//! reproducible. Every pair line records n, the heat and the seed, and
-//! resuming only skips pairs already done at the same n and heat. B is moved into A's key, as the
+//! reproducible. Every pair line records n, the heat, the pipeline and the
+//! seed, and resuming only skips pairs already done with the same three. B is moved into A's key, as the
 //! app does, with tracks categorised from Live's database in its default
 //! folder, by track name where it has no tags.
 
 use malstrom_lib::als::livedb::default_db_files;
 use malstrom_lib::als::mashup::{
-    build_mashup, diagnostics, plan_variations, track_categories, track_semitones, MashupSource,
-    HEAT_LEVELS,
+    build_mashup_with, diagnostics,
+    pipeline::{parse_pipeline, DEFAULT_PIPELINE},
+    plan_variations, track_categories, track_semitones, MashupSource, HEAT_LEVELS,
 };
 use malstrom_lib::als::output_path::{scan_als_files, write_als, LIVE_12_UPGRADE_DIR};
 use malstrom_lib::als::AlsInspector;
@@ -28,6 +30,14 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 const SEED: u64 = 1;
+
+/// How every pair is mashed: the variation count, the heat and the
+/// pipeline.
+struct Settings<'a> {
+    variations: usize,
+    heat: usize,
+    pipeline: &'a str,
+}
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -53,9 +63,20 @@ fn main() -> ExitCode {
         }
         args.drain(i..i + 2);
     }
+    let mut pipeline = DEFAULT_PIPELINE.to_string();
+    if let Some(i) = args.iter().position(|a| a == "--pipeline") {
+        match args.get(i + 1).filter(|p| parse_pipeline(p).is_ok()) {
+            Some(p) => pipeline = p.clone(),
+            None => {
+                eprintln!("--pipeline takes stage names, e.g. {DEFAULT_PIPELINE}");
+                return ExitCode::FAILURE;
+            }
+        }
+        args.drain(i..i + 2);
+    }
     let Some(root) = args.first() else {
         eprintln!(
-            "usage: mashup_batch_test <root-dir> [report-path.jsonl] [--variations n] [--heat h]"
+            "usage: mashup_batch_test <root-dir> [report-path.jsonl] [--variations n] [--heat h] [--pipeline stages]"
         );
         return ExitCode::FAILURE;
     };
@@ -65,7 +86,12 @@ fn main() -> ExitCode {
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("mashup-batch-report.jsonl"));
 
-    match run(&root, &report_path, variations, heat) {
+    let settings = Settings {
+        variations,
+        heat,
+        pipeline: &pipeline,
+    };
+    match run(&root, &report_path, &settings) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -74,7 +100,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(root: &Path, report_path: &Path, variations: usize, heat: usize) -> anyhow::Result<()> {
+fn run(root: &Path, report_path: &Path, settings: &Settings) -> anyhow::Result<()> {
     // In case a previous run was killed mid-batch with Live left open.
     force_kill_live();
 
@@ -114,14 +140,17 @@ fn run(root: &Path, report_path: &Path, variations: usize, heat: usize) -> anyho
         for j in (i + 1)..loaded.len() {
             let (a_key, a_xml) = &loaded[i];
             let (b_key, b_xml) = &loaded[j];
-            let pair_key = format!("{a_key}|{b_key}|{variations}|{heat}");
+            let pair_key = format!(
+                "{a_key}|{b_key}|{}|{}|{}",
+                settings.variations, settings.heat, settings.pipeline
+            );
             done += 1;
             if done_pairs.contains(&pair_key) {
                 continue;
             }
             print!("[{done}/{total_pairs}] {a_key} + {b_key} ... ");
             let _ = std::io::stdout().flush();
-            process_pair(&mut report, a_key, a_xml, b_key, b_xml, variations, heat)?;
+            process_pair(&mut report, a_key, a_xml, b_key, b_xml, settings)?;
         }
     }
 
@@ -138,19 +167,17 @@ fn process_pair(
     a_xml: &str,
     b_key: &str,
     b_xml: &str,
-    variations: usize,
-    heat: usize,
+    settings: &Settings,
 ) -> anyhow::Result<()> {
     // Every line starts with the pair and how it was planned.
     let mut line = |extra: Value| {
-        let mut value =
-            json!({"a": a_key, "b": b_key, "variations": variations, "heat": heat, "seed": SEED});
+        let mut value = json!({"a": a_key, "b": b_key, "variations": settings.variations, "heat": settings.heat, "pipeline": settings.pipeline, "seed": SEED});
         if let (Some(base), Value::Object(extra)) = (value.as_object_mut(), extra) {
             base.extend(extra);
         }
         append_line(report, &value)
     };
-    let (merged, problems) = match phase_a(a_xml, b_xml, variations, heat) {
+    let (merged, problems) = match phase_a(a_xml, b_xml, settings) {
         Err(panic_payload) => {
             let msg = panic_message(&panic_payload);
             println!("PANIC: {msg}");
@@ -184,13 +211,12 @@ fn process_pair(
 fn phase_a(
     a_xml: &str,
     b_xml: &str,
-    variations: usize,
-    heat: usize,
+    settings: &Settings,
 ) -> std::thread::Result<anyhow::Result<(String, Vec<String>)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let docs = [Document::parse(a_xml)?, Document::parse(b_xml)?];
         let live_db = default_db_files();
-        let merged = build_mashup(
+        let merged = build_mashup_with(
             &[
                 MashupSource {
                     xml: a_xml.to_string(),
@@ -207,10 +233,11 @@ fn phase_a(
                     track_categories(&docs[0], &live_db)?,
                     track_categories(&docs[1], &live_db)?,
                 ],
-                variations,
-                heat,
+                settings.variations,
+                settings.heat,
                 SEED,
             )?,
+            &parse_pipeline(settings.pipeline)?,
         )?;
         let problems = diagnostics::check(&merged);
         Ok((merged, problems))
@@ -430,7 +457,11 @@ fn load_done_pairs(report_path: &Path) -> anyhow::Result<HashSet<String>> {
                 ) {
                     let variations = value.get("variations").and_then(Value::as_u64).unwrap_or(1);
                     let heat = value.get("heat").and_then(Value::as_u64).unwrap_or(1);
-                    done.insert(format!("{a}|{b}|{variations}|{heat}"));
+                    let pipeline = value
+                        .get("pipeline")
+                        .and_then(Value::as_str)
+                        .unwrap_or(DEFAULT_PIPELINE);
+                    done.insert(format!("{a}|{b}|{variations}|{heat}|{pipeline}"));
                 }
             }
             Err(e) => eprintln!("warning: dropping unparseable report line {}: {e}", i + 1),

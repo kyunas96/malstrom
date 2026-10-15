@@ -9,12 +9,17 @@
 //! Live's default folder or from `--live-db`, the way `list_tracks` does;
 //! tracks it has no tags for fall back to their names.
 //!
+//! `--pipeline` names the stages that build the Session View, in order
+//! (see `pipeline.rs`). The default is `layering,twist`.
+//!
 //! Usage: cargo run --bin mashup -- A.als B.als -o out.als [--variations n] [--heat h] [--seed s]
-//!        [--no-transpose] [--live-db DIR]
+//!        [--pipeline stages] [--no-transpose] [--live-db DIR]
 
 use malstrom_lib::als::livedb::{default_db_files, find_db_files};
 use malstrom_lib::als::mashup::{
-    build_mashup, diagnostics, plan_variations, track_categories, track_semitones, MashupSource,
+    build_mashup_with, diagnostics,
+    pipeline::{parse_pipeline, DEFAULT_PIPELINE},
+    plan_variations, track_categories, track_semitones, MashupSource,
 };
 use malstrom_lib::als::output_path::write_als;
 use malstrom_lib::als::AlsInspector;
@@ -22,7 +27,7 @@ use roxmltree::Document;
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: mashup <A.als> <B.als> -o <out.als> [--variations n (1 to 6)] [--heat h (1 to 5)] [--seed s] [--no-transpose] [--live-db DIR]";
+const USAGE: &str = "usage: mashup <A.als> <B.als> -o <out.als> [--variations n (1 to 6)] [--heat h (1 to 5)] [--seed s] [--pipeline layering,twist] [--no-transpose] [--live-db DIR]";
 
 struct Args<'a> {
     a: &'a str,
@@ -31,6 +36,7 @@ struct Args<'a> {
     variations: usize,
     heat: usize,
     seed: Option<u64>,
+    pipeline: &'a str,
     transpose: bool,
     live_db: Option<&'a str>,
 }
@@ -70,6 +76,7 @@ fn parse(args: &[String]) -> Option<Args<'_>> {
         variations: 1,
         heat: 1,
         seed: None,
+        pipeline: DEFAULT_PIPELINE,
         transpose: true,
         live_db: None,
     };
@@ -79,6 +86,7 @@ fn parse(args: &[String]) -> Option<Args<'_>> {
             "--variations" => args.variations = rest.next()?.parse().ok()?,
             "--heat" => args.heat = rest.next()?.parse().ok()?,
             "--seed" => args.seed = Some(rest.next()?.parse().ok()?),
+            "--pipeline" => args.pipeline = rest.next()?,
             "--no-transpose" => args.transpose = false,
             "--live-db" => args.live_db = Some(rest.next()?),
             _ => return None,
@@ -128,7 +136,7 @@ fn run(args: &Args, seed: u64) -> anyhow::Result<()> {
         },
     ];
 
-    let merged = build_mashup(&sources, &variations)?;
+    let merged = build_mashup_with(&sources, &variations, &parse_pipeline(args.pipeline)?)?;
     let problems = diagnostics::check(&merged);
     if !problems.is_empty() {
         anyhow::bail!(

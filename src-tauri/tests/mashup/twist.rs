@@ -6,7 +6,7 @@ use malstrom_lib::als::mashup::{
 use roxmltree::Document;
 
 /// A clip slot holding `clip`, or nothing when it's empty.
-fn slot(clip: &str) -> String {
+pub(crate) fn slot(clip: &str) -> String {
     let value = if clip.is_empty() {
         "<Value />".to_string()
     } else {
@@ -17,14 +17,14 @@ fn slot(clip: &str) -> String {
 
 /// A MIDI clip named `name`: 4 beats long, one note at beat 1 lasting half
 /// a beat, and an envelope pointing at automation target 7.
-fn midi_clip(name: &str) -> String {
+pub(crate) fn midi_clip(name: &str) -> String {
     format!(
         r#"<MidiClip Id="1" Time="0"><CurrentStart Value="0" /><CurrentEnd Value="4" /><Loop><LoopStart Value="0" /><LoopEnd Value="4" /><LoopOn Value="true" /></Loop><Name Value="{name}" /><Color Value="5" /><Envelopes><Envelopes><ClipEnvelope Id="0"><EnvelopeTarget><PointeeId Value="7" /></EnvelopeTarget></ClipEnvelope></Envelopes></Envelopes><Notes><KeyTracks><KeyTrack Id="0"><Notes><MidiNoteEvent Time="1" Duration="0.5" Velocity="100" /></Notes><MidiKey Value="60" /></KeyTrack></KeyTracks></Notes></MidiClip>"#
     )
 }
 
 /// A track whose Session slots hold `clips`, one per scene row.
-fn track(tag: &str, id: usize, name: &str, clips: &[&str]) -> String {
+pub(crate) fn track(tag: &str, id: usize, name: &str, clips: &[&str]) -> String {
     let slots: String = clips.iter().map(|c| slot(c)).collect();
     format!(
         r#"<{tag} Id="{id}"><Name><EffectiveName Value="{name}" /></Name><TrackGroupId Value="-1" /><DeviceChain><MainSequencer><ClipSlotList>{slots}</ClipSlotList></MainSequencer></DeviceChain></{tag}>"#
@@ -32,7 +32,7 @@ fn track(tag: &str, id: usize, name: &str, clips: &[&str]) -> String {
 }
 
 /// A project holding `tracks`, with one scene for the layout to copy.
-fn project(tracks: &str) -> String {
+pub(crate) fn project(tracks: &str) -> String {
     project_xml(tracks).replace(
         "</LiveSet>",
         r#"<Scenes><Scene Id="0"><Name Value="" /><Color Value="-1" /><Tempo Value="120" /></Scene></Scenes></LiveSet>"#,
@@ -68,7 +68,7 @@ fn mash(a: &[String], b: &[String], variations: &[Variation]) -> String {
 
 /// The clip names in each Session slot of the merged track named `name`
 /// ("" for an empty slot).
-fn rows(xml: &str, name: &str) -> Vec<String> {
+pub(crate) fn rows(xml: &str, name: &str) -> Vec<String> {
     let doc = Document::parse(xml).unwrap();
     let track = doc
         .descendants()
@@ -91,7 +91,7 @@ fn rows(xml: &str, name: &str) -> Vec<String> {
         .collect()
 }
 
-fn attrs(xml: &str, tag: &str, attr: &str) -> Vec<String> {
+pub(crate) fn attrs(xml: &str, tag: &str, attr: &str) -> Vec<String> {
     Document::parse(xml)
         .unwrap()
         .descendants()
@@ -101,7 +101,7 @@ fn attrs(xml: &str, tag: &str, attr: &str) -> Vec<String> {
 }
 
 /// `(name, colour)` of every scene.
-fn scenes(xml: &str) -> Vec<(String, String)> {
+pub(crate) fn scenes(xml: &str) -> Vec<(String, String)> {
     let doc = Document::parse(xml).unwrap();
     doc.descendants()
         .filter(|n| n.tag_name().name() == "Scene")

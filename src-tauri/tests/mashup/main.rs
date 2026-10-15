@@ -5,6 +5,7 @@ use malstrom_lib::als::mashup::{
 mod checks;
 mod groups;
 mod ids;
+mod pipeline;
 mod plan;
 mod sends;
 mod transpose;

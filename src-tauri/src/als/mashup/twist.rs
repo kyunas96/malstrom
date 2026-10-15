@@ -1,6 +1,40 @@
-use super::{apply_edits, child_value};
+//! The heat twists: what a variation does to B's own clips (scene shift,
+//! extra pitch, speed, and one swapped track), drawn by `plan.rs`.
+
+use super::pipeline::{Mix, Stage};
+use super::{apply_edits, child_value, transpose_track};
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
+
+/// Runs each variation's `Twist` on B's slots. The scene shift isn't here:
+/// the layout stage reads it.
+pub struct TwistStage;
+
+impl Stage for TwistStage {
+    fn run(&self, mix: &mut Mix) -> Result<()> {
+        for (var, v) in mix.variations.iter().enumerate() {
+            let twist = &v.twist;
+            let block = &mix.blocks[var];
+            let mut reworked = Vec::new();
+            for &idx in mix.picks[var].get(1).map_or(&[][..], |p| p) {
+                let donor = twist.swap.filter(|&(b, _)| b == idx).map(|(_, a)| a);
+                let slots = block.slots[&(1, idx)]
+                    .iter()
+                    .zip(&block.rows)
+                    .map(|(own, rows)| {
+                        let donor_clip = donor.and_then(|a| mix.clip(0, a, rows[0]));
+                        twist.apply(idx, own.as_deref(), donor_clip)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                reworked.push((idx, slots));
+            }
+            for (idx, slots) in reworked {
+                mix.blocks[var].slots.insert((1, idx), slots);
+            }
+        }
+        Ok(())
+    }
+}
 
 /// The strategies the heat dial adds, mildest first. Heat `h` turns on the
 /// first `h` of them; "stack" (random track sets, B in A's key) is always on.
@@ -52,6 +86,31 @@ impl Twist {
         }
         parts.join(" · ")
     }
+
+    /// Runs the twist's clip stages on one Session slot of B's track `idx`,
+    /// in order: source (swap), time (speed), pitch (extra semitones).
+    /// `b_clip` is B's own clip there and `donor_clip` A's clip on the swap
+    /// donor's track at the same row. Selection (`scene_shift`) already
+    /// happened in `layout`, which picked those rows. `None` leaves the
+    /// slot empty.
+    pub(super) fn apply(
+        &self,
+        idx: usize,
+        b_clip: Option<&str>,
+        donor_clip: Option<&str>,
+    ) -> Result<Option<String>> {
+        // A swapped track plays A's clip as A wrote it, so no later stage
+        // touches it.
+        if self.swap.is_some_and(|(b, _)| b == idx) {
+            return donor_clip.map(clear_envelopes).transpose();
+        }
+        let Some(clip) = b_clip else {
+            return Ok(None);
+        };
+        let clip = change_speed(clip, self.speed)?;
+        let extra = self.semitones.get(idx).copied().unwrap_or(0);
+        transpose_track(&clip, extra).map(Some)
+    }
 }
 
 fn parse(block: &str) -> Result<Document<'_>> {
@@ -67,7 +126,7 @@ fn clips<'a, 'i>(doc: &'a Document<'i>) -> impl Iterator<Item = Node<'a, 'i>> {
 
 /// `value` with its clip envelopes cleared, for a clip moving to another
 /// track: they point at its old track's devices.
-pub(super) fn clear_envelopes(value: &str) -> Result<String> {
+fn clear_envelopes(value: &str) -> Result<String> {
     let doc = parse(value)?;
     let edits = doc
         .descendants()
@@ -96,7 +155,7 @@ pub(super) fn recolor(value: &str, color: u32) -> Result<String> {
 /// note times and lengths, and warp markers. Unwarped audio is left alone,
 /// since it can't change speed without changing pitch. Clip envelopes and
 /// follow-action times aren't stretched.
-pub(super) fn change_speed(value: &str, speed: Speed) -> Result<String> {
+fn change_speed(value: &str, speed: Speed) -> Result<String> {
     let factor = match speed {
         Speed::Same => return Ok(value.to_string()),
         Speed::Half => 2.0,

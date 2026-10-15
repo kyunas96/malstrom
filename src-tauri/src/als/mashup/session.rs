@@ -1,13 +1,10 @@
-use super::{apply_edits, child_value, Variation};
+use super::{apply_edits, child_value};
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 
 /// Live palette indices, one per variation, so each variation's scenes
 /// and clips read as one coloured band in the Session grid.
 const VAR_COLORS: [u32; 6] = [13, 1, 4, 8, 11, 17];
-
-/// The most scenes one variation gets.
-const MAX_BLOCK: usize = 8;
 
 /// One scene row in the merged set.
 #[derive(Debug, PartialEq)]
@@ -85,30 +82,6 @@ pub(super) fn clip_near<'a, 'i>(track: Node<'a, 'i>, row: usize) -> Option<Node<
         .find(|(i, _)| *i <= row)
         .or(clips.first())
         .map(|&(_, v)| v)
-}
-
-/// The merged set's scene rows. Each variation gets a header, then one row
-/// per section of the busier source (up to `MAX_BLOCK`), then a gap. Row j
-/// pairs A's section j with B's section j + the variation's
-/// `scene_shift`, both wrapping round.
-pub(super) fn layout(sections: &[Vec<usize>; 2], variations: &[Variation]) -> Vec<Row> {
-    let len = sections[0].len().max(sections[1].len()).clamp(1, MAX_BLOCK);
-    let pick = |s: usize, j: usize| -> Option<usize> {
-        let rows = &sections[s];
-        (!rows.is_empty()).then(|| rows[j % rows.len()])
-    };
-    let mut out = Vec::new();
-    for (var, v) in variations.iter().enumerate() {
-        out.push(Row::Header(var));
-        for j in 0..len {
-            out.push(Row::Play {
-                var,
-                rows: [pick(0, j), pick(1, j + v.twist.scene_shift)],
-            });
-        }
-        out.push(Row::Gap);
-    }
-    out
 }
 
 pub(super) fn var_color(var: usize) -> u32 {

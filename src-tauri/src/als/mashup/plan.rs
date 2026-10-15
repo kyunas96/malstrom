@@ -287,7 +287,7 @@ pub fn plan_variations(
     let mut variations = vec![Variation {
         name: "Var 1".to_string(),
         picks: units.iter().map(|u| u.concat()).collect(),
-        twist: Twist::default(),
+        ..Default::default()
     }];
     while variations.len() < n {
         let mut picks = draw(&mut rng);
