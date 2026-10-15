@@ -1,4 +1,4 @@
-use super::{apply_attribute_edits, block_with_indent};
+use super::{apply_attribute_edits, block_with_indent, tracks_node};
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 
@@ -21,10 +21,8 @@ pub(super) fn mixer_sends<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a
 /// format instead of a hard-coded one. `None` when no track has a send,
 /// i.e. the project has no return tracks.
 pub(super) fn first_send_holder(doc: &Document, xml: &str) -> Option<String> {
-    let tracks_node = doc
-        .descendants()
-        .find(|n| n.tag_name().name() == "Tracks")?;
-    tracks_node
+    tracks_node(doc)
+        .ok()?
         .children()
         .filter_map(mixer_sends)
         .find_map(|sends| sends.first_element_child())

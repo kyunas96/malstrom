@@ -29,7 +29,7 @@ pub fn check(xml: &str) -> Vec<String> {
     // pristine files as corrupt. The one list this project has actually
     // seen Live reject on ("Non-unique list ids") is the top-level
     // <Tracks> list itself, so that's what's checked here.
-    if let Some(tracks_node) = doc.descendants().find(|n| n.tag_name().name() == "Tracks") {
+    if let Ok(tracks_node) = super::tracks_node(&doc) {
         let ids: Vec<&str> = tracks_node
             .children()
             .filter(|n| n.is_element())

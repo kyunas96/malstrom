@@ -36,12 +36,15 @@ pub struct Variation {
     pub picks: Vec<Vec<usize>>,
 }
 
-pub fn non_return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<Node<'a, 'input>>> {
-    let tracks_node = doc
-        .descendants()
+/// The set's top-level `<Tracks>` list.
+fn tracks_node<'a, 'input>(doc: &'a Document<'input>) -> Result<Node<'a, 'input>> {
+    doc.descendants()
         .find(|n| n.tag_name().name() == "Tracks")
-        .ok_or_else(|| anyhow!("no <Tracks> element found in project"))?;
-    Ok(tracks_node
+        .ok_or_else(|| anyhow!("no <Tracks> element found in project"))
+}
+
+pub fn non_return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<Node<'a, 'input>>> {
+    Ok(tracks_node(doc)?
         .children()
         .filter(|n| n.is_element())
         .filter(|n| n.tag_name().name() != "ReturnTrack")
@@ -49,11 +52,7 @@ pub fn non_return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<No
 }
 
 fn return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<Node<'a, 'input>>> {
-    let tracks_node = doc
-        .descendants()
-        .find(|n| n.tag_name().name() == "Tracks")
-        .ok_or_else(|| anyhow!("no <Tracks> element found in project"))?;
-    Ok(tracks_node
+    Ok(tracks_node(doc)?
         .children()
         .filter(|n| n.tag_name().name() == "ReturnTrack")
         .collect())
@@ -184,10 +183,7 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         .iter()
         .map(|s| Document::parse(&s.xml).map_err(|e| anyhow!("XML parse error: {e}")))
         .collect::<Result<Vec<_>>>()?;
-    let tracks_node = docs[0]
-        .descendants()
-        .find(|n| n.tag_name().name() == "Tracks")
-        .ok_or_else(|| anyhow!("no <Tracks> element found in project"))?;
+    let base_tracks = tracks_node(&docs[0])?;
     let source_tracks = docs
         .iter()
         .map(non_return_tracks)
@@ -319,9 +315,9 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
     }
 
     let mut merged = String::with_capacity(base.xml.len());
-    merged.push_str(&base.xml[..tracks_node.range().start]);
+    merged.push_str(&base.xml[..base_tracks.range().start]);
     merged.push_str(&format!("<Tracks>{body}\n\t\t</Tracks>"));
-    merged.push_str(&base.xml[tracks_node.range().end..]);
+    merged.push_str(&base.xml[base_tracks.range().end..]);
 
     append_sends_pre(&mut merged, &donor_sends_pre)?;
     ensure_next_pointee_id_is_high_enough(&mut merged)?;
