@@ -5,7 +5,9 @@
 //!
 //! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl]
 
-use malstrom_lib::als::mashup::{build_mashup, diagnostics, non_return_tracks, MashupSource};
+use malstrom_lib::als::mashup::{
+    build_mashup, diagnostics, non_return_tracks, MashupSource, Variation,
+};
 use malstrom_lib::als::output_path::{scan_als_files, write_als, LIVE_12_UPGRADE_DIR};
 use malstrom_lib::als::AlsInspector;
 use roxmltree::Document;
@@ -153,18 +155,20 @@ fn all_track_indices(xml: &str) -> anyhow::Result<Vec<usize>> {
 /// instead of a recoverable skip.
 fn phase_a(a_xml: &str, b_xml: &str) -> std::thread::Result<anyhow::Result<(String, Vec<String>)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let a_indices = all_track_indices(a_xml)?;
-        let b_indices = all_track_indices(b_xml)?;
-        let merged = build_mashup(&[
-            MashupSource {
-                xml: a_xml.to_string(),
-                track_indices: a_indices,
-            },
-            MashupSource {
-                xml: b_xml.to_string(),
-                track_indices: b_indices,
-            },
-        ])?;
+        let merged = build_mashup(
+            &[
+                MashupSource {
+                    xml: a_xml.to_string(),
+                },
+                MashupSource {
+                    xml: b_xml.to_string(),
+                },
+            ],
+            &[Variation {
+                name: "Var 1".to_string(),
+                picks: vec![all_track_indices(a_xml)?, all_track_indices(b_xml)?],
+            }],
+        )?;
         let problems = diagnostics::check(&merged);
         Ok((merged, problems))
     }))

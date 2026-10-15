@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
+use std::collections::HashMap;
 
 /// An empty Live 12 `GroupTrack` (no devices, no clips, `TrackGroupId -1`,
 /// an empty `<Sends />` for `pad_track_sends` to fill), cut from a real
@@ -8,13 +9,18 @@ use roxmltree::{Document, Node};
 /// here.
 pub const GROUP_TRACK_TEMPLATE: &str = include_str!("templates/group_track.xml");
 
-/// One source project's raw (decompressed) XML plus the positions of the
-/// tracks to pull from it -- indices into the same top-level, non-return
-/// track order `categorize::list_tracks` returns, so the frontend's
-/// checklist and this merge always agree on "track 2".
+/// One source project's raw (decompressed) XML.
 pub struct MashupSource {
     pub xml: String,
-    pub track_indices: Vec<usize>,
+}
+
+/// One group in the mashup. `picks[s]` holds indices into source `s`'s
+/// `non_return_tracks` (the same order `categorize::list_tracks` returns).
+/// They must cover whole units: a top-level track plus every track grouped
+/// under it. A missing entry picks nothing from that source.
+pub struct Variation {
+    pub name: String,
+    pub picks: Vec<Vec<usize>>,
 }
 
 pub fn non_return_tracks<'a, 'input>(doc: &'a Document<'input>) -> Result<Vec<Node<'a, 'input>>> {
@@ -270,7 +276,10 @@ fn shift_ids_in_block(block: &str, offset: u64) -> Result<String> {
         Document::parse(block).map_err(|e| anyhow!("XML parse error while remapping ids: {e}"))?;
     let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
     for n in doc.descendants() {
-        let tag_ends_in_id = n.tag_name().name().ends_with("Id");
+        // A GrooveId points into the document's GroovePool, not into the
+        // track, so it must not move with the track's own ids.
+        let tag = n.tag_name().name();
+        let tag_ends_in_id = tag.ends_with("Id") && tag != "GrooveId";
         for attr in n.attributes() {
             let relevant = attr.name() == "Id" || (tag_ends_in_id && attr.name() == "Value");
             let Some(original) = relevant.then(|| attr.value().parse::<u64>().ok()).flatten()
@@ -318,47 +327,195 @@ fn ensure_next_pointee_id_is_high_enough(merged: &mut String) -> Result<()> {
     Ok(())
 }
 
-/// Merges the selected tracks from each source into `sources[0]`'s project.
-/// Tempo, time signature, and the master track come from that first source
-/// -- the documented v0 limitation, not solved here. Every source's return
-/// tracks are kept, in source order, and every track's sends are padded so
-/// each one still feeds its own project's returns (see `pad_track_sends`).
-/// Every other track in every source (checked or not) is dropped; only the
-/// checked ones are spliced in, in source order. Returns the merged XML;
-/// callers decide where (and whether) to write it.
-pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
+fn track_group_id<'a>(track: Node<'a, '_>) -> Option<&'a str> {
+    track
+        .children()
+        .find(|c| c.tag_name().name() == "TrackGroupId")
+        .and_then(|n| n.attribute("Value"))
+}
+
+/// For each of `tracks` (one project's `non_return_tracks`), the index of
+/// the top-level track its unit hangs from, following `TrackGroupId` up
+/// through groups inside groups. A top-level track is its own top.
+fn unit_tops(tracks: &[Node]) -> Result<Vec<usize>> {
+    let index_of: HashMap<&str, usize> = tracks
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| t.attribute("Id").map(|id| (id, i)))
+        .collect();
+    (0..tracks.len())
+        .map(|i| {
+            let mut at = i;
+            for _ in 0..=tracks.len() {
+                match track_group_id(tracks[at]) {
+                    None | Some("-1") => return Ok(at),
+                    Some(group) => {
+                        at = *index_of
+                            .get(group)
+                            .ok_or_else(|| anyhow!("track grouped under missing group {group}"))?
+                    }
+                }
+            }
+            Err(anyhow!("track grouping loops back on itself"))
+        })
+        .collect()
+}
+
+/// `picks` sorted into the source's own track order, after checking every
+/// index is in range and every picked unit is picked whole.
+fn whole_units(picks: &[usize], tops: &[usize]) -> Result<Vec<usize>> {
+    let mut picks = picks.to_vec();
+    picks.sort_unstable();
+    picks.dedup();
+    if let Some(&idx) = picks.iter().find(|&&i| i >= tops.len()) {
+        return Err(anyhow!("track index {idx} out of range for source project"));
+    }
+    for &idx in &picks {
+        let top = tops[idx];
+        if let Some(missing) =
+            (0..tops.len()).find(|&j| tops[j] == top && picks.binary_search(&j).is_err())
+        {
+            return Err(anyhow!(
+                "track {idx} is picked but track {missing} of the same group is not; groups are picked whole"
+            ));
+        }
+    }
+    Ok(picks)
+}
+
+/// A track's own `DeviceChain/AudioOutputRouting`.
+fn audio_output_routing<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a, 'input>> {
+    ["DeviceChain", "AudioOutputRouting"]
+        .iter()
+        .try_fold(track, |node, tag| {
+            node.children().find(|c| c.tag_name().name() == *tag)
+        })
+}
+
+fn child_value<'a, 'input>(
+    node: Node<'a, 'input>,
+    tag: &str,
+) -> Option<roxmltree::Attribute<'a, 'input>> {
+    node.children()
+        .find(|c| c.tag_name().name() == tag)
+        .and_then(|c| c.attributes().find(|a| a.name() == "Value"))
+}
+
+/// Puts a unit's top-level track inside the group `group_id`: its
+/// `TrackGroupId` points at the group, and if it played to the main out it
+/// now plays into the group, as Live writes it (`AudioOut/GroupTrack`).
+fn into_group(block: &str, group_id: u64) -> Result<String> {
+    let doc = Document::parse(block)
+        .map_err(|e| anyhow!("XML parse error while grouping a track: {e}"))?;
+    let track = doc.root_element();
+    let mut edits = Vec::new();
+    if let Some(attr) = child_value(track, "TrackGroupId") {
+        edits.push((attr.range_value(), group_id.to_string()));
+    }
+    if let Some(routing) = audio_output_routing(track) {
+        if let Some(target) = child_value(routing, "Target")
+            .filter(|t| matches!(t.value(), "AudioOut/Main" | "AudioOut/Master"))
+        {
+            edits.push((target.range_value(), "AudioOut/GroupTrack".to_string()));
+            if let Some(display) = child_value(routing, "UpperDisplayString") {
+                edits.push((display.range_value(), "Group".to_string()));
+            }
+        }
+    }
+    Ok(apply_attribute_edits(block, edits))
+}
+
+/// A copy of `GROUP_TRACK_TEMPLATE` named `name`, with its ids shifted by
+/// `offset` (its own track Id becomes `offset`), playing to `main_out`, and
+/// with one send per return in the merged set, all turned down.
+fn group_block(
+    name: &str,
+    offset: u64,
+    main_out: &str,
+    total_returns: usize,
+    send_template: Option<&str>,
+    next_id: &mut u64,
+) -> Result<String> {
+    let block = shift_ids_in_block(GROUP_TRACK_TEMPLATE.trim_end(), offset)?;
+    let doc =
+        Document::parse(&block).map_err(|e| anyhow!("XML parse error in group template: {e}"))?;
+    let group = doc.root_element();
+    let name = name
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('"', "&quot;");
+    let name_node = group
+        .children()
+        .find(|c| c.tag_name().name() == "Name")
+        .ok_or_else(|| anyhow!("group template has no <Name>"))?;
+    let mut edits = Vec::new();
+    for tag in ["EffectiveName", "UserName"] {
+        let attr = child_value(name_node, tag)
+            .ok_or_else(|| anyhow!("group template has no Name/{tag}"))?;
+        edits.push((attr.range_value(), name.clone()));
+    }
+    let target = audio_output_routing(group)
+        .and_then(|r| child_value(r, "Target"))
+        .ok_or_else(|| anyhow!("group template has no AudioOutputRouting/Target"))?;
+    edits.push((target.range_value(), main_out.to_string()));
+    let block = apply_attribute_edits(&block, edits);
+    pad_track_sends(&block, 0, total_returns, send_template, next_id)
+}
+
+/// Builds one set holding a group per variation, each with the picked units
+/// from every source, A's then B's. Tempo, time signature and the master
+/// track come from `sources[0]`. Every source's return tracks are kept once,
+/// in source order, and every track's sends are padded so each one still
+/// feeds its own project's returns (see `pad_track_sends`). Returns the
+/// merged XML; callers decide where (and whether) to write it.
+///
+/// Ids are only unique within one project, and a source can be copied into
+/// several variations, so every copy gets its own id range, sized to the
+/// source's highest id. Source 0's first copy keeps its own ids (they
+/// already fit around the rest of the base document). Every other source's
+/// first copy shares a range with that source's returns and `SendsPre`
+/// flags. Every later copy, every group and every padding send takes the
+/// next free ids above all of those.
+pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Result<String> {
     let base = sources
         .first()
         .ok_or_else(|| anyhow!("no source projects given"))?;
+    if variations.is_empty() {
+        return Err(anyhow!("no variations given"));
+    }
     let docs = sources
         .iter()
         .map(|s| Document::parse(&s.xml).map_err(|e| anyhow!("XML parse error: {e}")))
         .collect::<Result<Vec<_>>>()?;
-    let base_doc = &docs[0];
-    let tracks_node = base_doc
+    let tracks_node = docs[0]
         .descendants()
         .find(|n| n.tag_name().name() == "Tracks")
         .ok_or_else(|| anyhow!("no <Tracks> element found in project"))?;
-
-    // Ids are only unique within their own project. The base source (index
-    // 0) keeps its ids as-is; every other source's picked tracks get every
-    // id-bearing value in their subtree shifted above the base document's
-    // own highest id, so nothing in them can collide with it. v0 caps
-    // sources at exactly 2, so there's only ever one donor to shift.
-    let base_max_id = max_referenced_id(base_doc);
-    let offsets: Vec<u64> = (0..sources.len())
-        .map(|i| if i == 0 { 0 } else { base_max_id + 1 })
-        .collect();
-
-    // Padding sends need ids of their own, above everything any source
-    // occupies once shifted.
-    let mut next_id = docs
+    let source_tracks = docs
         .iter()
-        .zip(&offsets)
-        .map(|(doc, offset)| max_referenced_id(doc) + offset)
-        .max()
-        .unwrap_or(0)
-        + 1;
+        .map(non_return_tracks)
+        .collect::<Result<Vec<_>>>()?;
+    let tops = source_tracks
+        .iter()
+        .map(|t| unit_tops(t))
+        .collect::<Result<Vec<_>>>()?;
+    // Live 11 calls the main out "Master", Live 12 "Main".
+    let main_out = if base.xml.contains("\"AudioOut/Master\"") {
+        "AudioOut/Master"
+    } else {
+        "AudioOut/Main"
+    };
+
+    let spans: Vec<u64> = docs.iter().map(|d| max_referenced_id(d) + 1).collect();
+    let group_span =
+        max_referenced_id(&Document::parse(GROUP_TRACK_TEMPLATE).map_err(|e| anyhow!("{e}"))?) + 1;
+    let mut next_id = spans[0];
+    let mut home = vec![0];
+    for span in &spans[1..] {
+        home.push(next_id);
+        next_id += span;
+    }
+
     let send_template = docs
         .iter()
         .zip(sources)
@@ -368,68 +525,105 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
         .map(|doc| return_tracks(doc).map(|r| r.len()))
         .collect::<Result<Vec<_>>>()?;
     let total_returns: usize = return_counts.iter().sum();
+    // Each source's returns land after every earlier source's, so its
+    // tracks need that many padding sends ahead of their own, and one per
+    // later source's return behind them.
+    let befores: Vec<usize> = return_counts
+        .iter()
+        .scan(0, |sum, n| {
+            let before = *sum;
+            *sum += n;
+            Some(before)
+        })
+        .collect();
 
-    let mut picked_tracks = String::new();
-    let mut all_returns = String::new();
-    let mut donor_sends_pre = String::new();
-    let mut returns_before = 0;
-    for (source_index, (source, doc)) in sources.iter().zip(&docs).enumerate() {
-        let offset = offsets[source_index];
-        // This source's returns land after every earlier source's, so its
-        // tracks need that many padding sends ahead of their own, and one
-        // per later source's return behind them.
-        let before = returns_before;
-        let after = total_returns - before - return_counts[source_index];
-        returns_before += return_counts[source_index];
-
-        let mut prepare = |node: Node| -> Result<String> {
-            let block = block_with_indent(&source.xml, &node);
-            let block = if offset > 0 {
-                strip_groove_references(&block)?
-            } else {
-                block
-            };
-            let block = shift_ids_in_block(&block, offset)?;
-            pad_track_sends(
-                &block,
-                before,
-                after,
-                send_template.as_deref(),
-                &mut next_id,
-            )
+    let prepare = |s: usize, node: Node, offset: u64, next_id: &mut u64| -> Result<String> {
+        let block = block_with_indent(&sources[s].xml, &node);
+        let block = if s > 0 {
+            strip_groove_references(&block)?
+        } else {
+            block
         };
+        let block = shift_ids_in_block(&block, offset)?;
+        let after = total_returns - befores[s] - return_counts[s];
+        let block = pad_track_sends(&block, befores[s], after, send_template.as_deref(), next_id)?;
+        Ok(format!("\n{block}"))
+    };
 
-        let tracks = non_return_tracks(doc)?;
-        for &idx in &source.track_indices {
-            let node = tracks
-                .get(idx)
-                .ok_or_else(|| anyhow!("track index {idx} out of range for source project"))?;
-            picked_tracks.push_str(&prepare(*node)?);
+    let mut body = String::new();
+    let mut copies = vec![0usize; sources.len()];
+    for variation in variations {
+        if variation.picks.len() > sources.len() {
+            return Err(anyhow!(
+                "{} picks from {} sources but only {} were given",
+                variation.name,
+                variation.picks.len(),
+                sources.len()
+            ));
         }
-        for node in return_tracks(doc)? {
-            all_returns.push_str(&prepare(node)?);
+        let picks = (0..sources.len())
+            .map(|s| whole_units(variation.picks.get(s).map_or(&[], |p| p), &tops[s]))
+            .collect::<Result<Vec<_>>>()?;
+        if picks.iter().all(|p| p.is_empty()) {
+            return Err(anyhow!("{} picks no tracks", variation.name));
         }
 
-        if offset > 0 {
-            if let Some(sends_pre) = doc
-                .descendants()
-                .find(|n| n.tag_name().name() == "SendsPre")
-            {
-                for flag in sends_pre.children().filter(|n| n.is_element()) {
-                    donor_sends_pre.push('\n');
-                    donor_sends_pre.push_str(&shift_ids_in_block(
-                        &block_with_indent(&source.xml, &flag),
-                        offset,
-                    )?);
-                }
+        let group_id = next_id;
+        next_id += group_span;
+        body.push('\n');
+        body.push_str(&group_block(
+            &variation.name,
+            group_id,
+            main_out,
+            total_returns,
+            send_template.as_deref(),
+            &mut next_id,
+        )?);
+
+        for (s, picks) in picks.iter().enumerate().filter(|(_, p)| !p.is_empty()) {
+            let offset = if copies[s] == 0 {
+                home[s]
+            } else {
+                next_id += spans[s];
+                next_id - spans[s]
+            };
+            copies[s] += 1;
+            for &idx in picks {
+                let block = prepare(s, source_tracks[s][idx], offset, &mut next_id)?;
+                body.push_str(&if tops[s][idx] == idx {
+                    into_group(&block, group_id)?
+                } else {
+                    block
+                });
             }
         }
     }
 
-    let new_tracks_block = format!("<Tracks>{picked_tracks}{all_returns}\n\t\t</Tracks>");
+    let mut donor_sends_pre = String::new();
+    for (s, doc) in docs.iter().enumerate() {
+        for node in return_tracks(doc)? {
+            body.push_str(&prepare(s, node, home[s], &mut next_id)?);
+        }
+        if s == 0 {
+            continue;
+        }
+        if let Some(sends_pre) = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "SendsPre")
+        {
+            for flag in sends_pre.children().filter(|n| n.is_element()) {
+                donor_sends_pre.push('\n');
+                donor_sends_pre.push_str(&shift_ids_in_block(
+                    &block_with_indent(&sources[s].xml, &flag),
+                    home[s],
+                )?);
+            }
+        }
+    }
+
     let mut merged = String::with_capacity(base.xml.len());
     merged.push_str(&base.xml[..tracks_node.range().start]);
-    merged.push_str(&new_tracks_block);
+    merged.push_str(&format!("<Tracks>{body}\n\t\t</Tracks>"));
     merged.push_str(&base.xml[tracks_node.range().end..]);
 
     append_sends_pre(&mut merged, &donor_sends_pre)?;
@@ -452,7 +646,8 @@ pub fn build_mashup(sources: &[MashupSource]) -> Result<String> {
 /// between `mashup.rs`'s own tests and the `mashup_batch_test` CLI so both
 /// check exactly the same things.
 pub mod diagnostics {
-    use super::{max_referenced_id, mixer_sends, Document};
+    use super::{max_referenced_id, mixer_sends, track_group_id, Document};
+    use std::collections::HashSet;
 
     /// Human-readable problems found in `xml`; empty means every known
     /// invariant holds.
@@ -486,6 +681,24 @@ pub mod diagnostics {
                     ids.len(),
                     unique_ids.len()
                 ));
+            }
+
+            // Live reads groups top-down: a track can only belong to a
+            // group listed above it ("Track grouping corrupt" otherwise).
+            let mut groups_so_far = HashSet::new();
+            for track in tracks_node.children().filter(|n| n.is_element()) {
+                if let Some(group) = track_group_id(track).filter(|g| *g != "-1") {
+                    if !groups_so_far.contains(group) {
+                        problems.push(format!(
+                            "{} Id={} has TrackGroupId {group}, which is not an earlier GroupTrack",
+                            track.tag_name().name(),
+                            track.attribute("Id").unwrap_or("?")
+                        ));
+                    }
+                }
+                if track.tag_name().name() == "GroupTrack" {
+                    groups_so_far.extend(track.attribute("Id"));
+                }
             }
 
             // Sends match returns by position, so every track (returns

@@ -1,4 +1,19 @@
-use malstrom_lib::als::mashup::{build_mashup, diagnostics, MashupSource, GROUP_TRACK_TEMPLATE};
+use malstrom_lib::als::mashup::{
+    build_mashup, diagnostics, MashupSource, Variation, GROUP_TRACK_TEMPLATE,
+};
+
+/// One variation picking `indices` from each source.
+fn mash(sources: Vec<(String, Vec<usize>)>) -> anyhow::Result<String> {
+    let (xmls, picks): (Vec<_>, Vec<_>) = sources.into_iter().unzip();
+    let sources: Vec<MashupSource> = xmls.into_iter().map(|xml| MashupSource { xml }).collect();
+    build_mashup(
+        &sources,
+        &[Variation {
+            name: "Var 1".to_string(),
+            picks,
+        }],
+    )
+}
 
 fn project_xml(tracks: &str) -> String {
     project_xml_with_next_pointee_id(tracks, 100)
@@ -11,11 +26,15 @@ fn project_xml_with_next_pointee_id(tracks: &str, next_pointee_id: u64) -> Strin
 }
 
 fn midi_track(name: &str) -> String {
-    format!(r#"<MidiTrack Id="1"><Name><EffectiveName Value="{name}" /></Name></MidiTrack>"#)
+    format!(
+        r#"<MidiTrack Id="1"><Name><EffectiveName Value="{name}" /></Name><TrackGroupId Value="-1" /></MidiTrack>"#
+    )
 }
 
+/// A return track with its one send (to itself) turned down, as Live
+/// writes it in a set with a single return.
 fn return_track(name: &str) -> String {
-    format!(r#"<ReturnTrack Id="9"><Name><EffectiveName Value="{name}" /></Name></ReturnTrack>"#)
+    track_with_sends("ReturnTrack", 9, name, &[OFF], 900)
 }
 
 #[test]
@@ -28,17 +47,7 @@ fn merges_selected_tracks_from_both_sources_and_keeps_base_metadata() {
     ));
     let b_xml = project_xml(&format!("{}{}", midi_track("Lead B"), midi_track("Pads B")));
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![1],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![1])]).unwrap();
 
     assert!(merged.contains("Drums A"));
     assert!(
@@ -73,17 +82,7 @@ fn shifts_every_id_in_a_donor_track_s_subtree_not_just_its_own() {
         r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
     // Source A's own Ids are the base document's -- never rewritten.
@@ -107,17 +106,7 @@ fn shifted_pointee_references_still_resolve_to_their_shifted_target() {
         r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="7" /></Devices></DeviceChain><AutomationEnvelopes><AutomationEnvelope Id="8"><EnvelopeTarget><PointeeId Value="7" /></EnvelopeTarget></AutomationEnvelope></AutomationEnvelopes></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
     let doc = roxmltree::Document::parse(&merged).unwrap();
@@ -147,17 +136,7 @@ fn raises_next_pointee_id_above_every_id_brought_in_from_either_source() {
         r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><Devices><PluginDevice Id="26192" /></Devices></DeviceChain></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     let doc = roxmltree::Document::parse(&merged).unwrap();
     let next_pointee_id: u64 = doc
@@ -186,17 +165,7 @@ fn drops_donor_groove_references_instead_of_leaving_them_dangling() {
         r#"<MidiTrack Id="1"><Name><EffectiveName Value="Lead B" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     let doc = roxmltree::Document::parse(&merged).unwrap();
     let groove_id = doc
@@ -218,11 +187,7 @@ fn base_project_s_own_groove_references_are_left_alone() {
         r#"<MidiTrack Id="1"><Name><EffectiveName Value="Drums A" /></Name><DeviceChain><MainSequencer><ClipSlotList><ClipSlot><ClipSlot><Value><MidiClip Id="2"><GrooveSettings><GrooveId Value="3" /></GrooveSettings></MidiClip></Value></ClipSlot></ClipSlot></ClipSlotList></MainSequencer></DeviceChain></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[MashupSource {
-        xml: a_xml,
-        track_indices: vec![0],
-    }])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0])]).unwrap();
 
     assert!(
         merged.contains(r#"<GrooveId Value="3" />"#),
@@ -242,17 +207,7 @@ fn next_pointee_id_does_not_need_to_exceed_its_own_value() {
         r#"<MidiTrack Id="2"><Name><EffectiveName Value="Lead B" /></Name></MidiTrack>"#,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 }
@@ -268,14 +223,13 @@ fn diagnostics_does_not_flag_legitimate_reuse_of_id_outside_the_tracks_list() {
     let a_xml = project_xml(&format!(
         "{}{}",
         midi_track("Drums A"),
-        r#"<ReturnTrack Id="9"><DeviceChain><ClipSlot Id="42" /></DeviceChain><Automation><ClipSlot Id="42" /></Automation></ReturnTrack>"#,
+        return_track("A-Rev").replace(
+            "<Mixer>",
+            r#"<ClipSlot Id="42" /><Automation><ClipSlot Id="42" /></Automation><Mixer>"#,
+        ),
     ));
 
-    let merged = build_mashup(&[MashupSource {
-        xml: a_xml,
-        track_indices: vec![0],
-    }])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 }
@@ -283,11 +237,7 @@ fn diagnostics_does_not_flag_legitimate_reuse_of_id_outside_the_tracks_list() {
 #[test]
 fn out_of_range_index_errors_instead_of_panicking() {
     let a_xml = project_xml(&midi_track("Only Track"));
-    let err = build_mashup(&[MashupSource {
-        xml: a_xml,
-        track_indices: vec![5],
-    }])
-    .unwrap_err();
+    let err = mash(vec![(a_xml, vec![5])]).unwrap_err();
     assert!(err.to_string().contains("out of range"));
 }
 
@@ -321,7 +271,7 @@ fn track_with_sends(
         format!("<Sends>{holders}</Sends>")
     };
     format!(
-        r#"<{tag} Id="{id}"><Name><EffectiveName Value="{name}" /></Name><DeviceChain><Mixer>{sends}</Mixer></DeviceChain></{tag}>"#
+        r#"<{tag} Id="{id}"><Name><EffectiveName Value="{name}" /></Name><TrackGroupId Value="-1" /><DeviceChain><AudioOutputRouting><Target Value="AudioOut/Main" /><UpperDisplayString Value="Main" /></AudioOutputRouting><Mixer>{sends}</Mixer></DeviceChain></{tag}>"#
     )
 }
 
@@ -389,17 +339,7 @@ fn donor_returns_are_appended_and_every_track_s_sends_still_reach_its_own_return
         3,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 
@@ -456,17 +396,7 @@ fn base_with_no_returns_gets_its_empty_sends_list_filled_in() {
         1,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
     assert_eq!(send_values(&merged, "Drums A"), [OFF]);
@@ -500,17 +430,7 @@ fn sends_inside_rack_chains_are_not_padded() {
         1,
     );
 
-    let merged = build_mashup(&[
-        MashupSource {
-            xml: a_xml,
-            track_indices: vec![0],
-        },
-        MashupSource {
-            xml: b_xml,
-            track_indices: vec![0],
-        },
-    ])
-    .unwrap();
+    let merged = mash(vec![(a_xml, vec![0]), (b_xml, vec![0])]).unwrap();
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
     assert_eq!(send_values(&merged, "Lead B"), [OFF, "0.7"]);
@@ -571,5 +491,273 @@ fn group_track_template_is_an_empty_top_level_group() {
                 .count(),
             0
         );
+    }
+}
+
+/// `track` moved under the group with Id `group`.
+fn in_group(track: String, group: usize) -> String {
+    track.replacen(
+        r#"<TrackGroupId Value="-1" />"#,
+        &format!(r#"<TrackGroupId Value="{group}" />"#),
+        1,
+    )
+}
+
+fn two_sources_with_a_return_each() -> Vec<MashupSource> {
+    let a_xml = project_xml_with_sends_pre(
+        &format!(
+            "{}{}",
+            track_with_sends("MidiTrack", 1, "Drums A", &["0.5"], 100),
+            track_with_sends("ReturnTrack", 2, "A-Rev", &[OFF], 110),
+        ),
+        1,
+    );
+    let b_xml = project_xml_with_sends_pre(
+        &format!(
+            "{}{}",
+            track_with_sends("MidiTrack", 1, "Lead B", &["0.7"], 100),
+            track_with_sends("ReturnTrack", 2, "B-Rev", &[OFF], 110),
+        ),
+        1,
+    );
+    vec![MashupSource { xml: a_xml }, MashupSource { xml: b_xml }]
+}
+
+fn variation(name: &str, picks: Vec<Vec<usize>>) -> Variation {
+    Variation {
+        name: name.to_string(),
+        picks,
+    }
+}
+
+/// `(tag, Id, TrackGroupId, name, output target, send count)` per track in
+/// `<Tracks>`, in order.
+type TrackRow = (String, String, String, String, String, usize);
+fn find<'a, 'input>(
+    n: roxmltree::Node<'a, 'input>,
+    path: &[&str],
+) -> Option<roxmltree::Node<'a, 'input>> {
+    path.iter().try_fold(n, |n, tag| {
+        n.children().find(|c| c.tag_name().name() == *tag)
+    })
+}
+fn track_rows(merged: &str) -> Vec<TrackRow> {
+    let doc = roxmltree::Document::parse(merged).unwrap();
+    let tracks = doc
+        .descendants()
+        .find(|n| n.tag_name().name() == "Tracks")
+        .unwrap();
+    tracks
+        .children()
+        .filter(|n| n.is_element())
+        .map(|t| {
+            let value = |path: &[&str]| {
+                find(t, path)
+                    .and_then(|n| n.attribute("Value"))
+                    .unwrap_or("")
+                    .to_string()
+            };
+            (
+                t.tag_name().name().to_string(),
+                t.attribute("Id").unwrap().to_string(),
+                value(&["TrackGroupId"]),
+                value(&["Name", "EffectiveName"]),
+                value(&["DeviceChain", "AudioOutputRouting", "Target"]),
+                find(t, &["DeviceChain", "Mixer", "Sends"])
+                    .map_or(0, |s| s.children().filter(|n| n.is_element()).count()),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn copying_a_source_three_times_keeps_ids_unique_and_returns_once() {
+    let merged = build_mashup(
+        &two_sources_with_a_return_each(),
+        &[
+            variation("Var 1", vec![vec![0], vec![0]]),
+            variation("Var 2", vec![vec![0], vec![0]]),
+            variation("Var 3", vec![vec![0], vec![0]]),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
+    let rows = track_rows(&merged);
+    let returns: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.0 == "ReturnTrack")
+        .map(|r| r.3.as_str())
+        .collect();
+    assert_eq!(returns, ["A-Rev", "B-Rev"]);
+
+    // Every copy still feeds its own project's return.
+    let doc = roxmltree::Document::parse(&merged).unwrap();
+    let sends_of = |name: &str| -> Vec<Vec<String>> {
+        doc.descendants()
+            .filter(|n| {
+                n.children().any(|c| {
+                    c.tag_name().name() == "Name"
+                        && c.first_element_child().and_then(|e| e.attribute("Value")) == Some(name)
+                })
+            })
+            .map(|t| {
+                child(child(child(t, "DeviceChain"), "Mixer"), "Sends")
+                    .children()
+                    .filter(|n| n.is_element())
+                    .map(|h| {
+                        child(child(h, "Send"), "Manual")
+                            .attribute("Value")
+                            .unwrap()
+                            .to_string()
+                    })
+                    .collect()
+            })
+            .collect()
+    };
+    assert_eq!(sends_of("Drums A"), vec![vec!["0.5", OFF]; 3]);
+    assert_eq!(sends_of("Lead B"), vec![vec![OFF, "0.7"]; 3]);
+
+    let mut target_ids: Vec<&str> = doc
+        .descendants()
+        .filter(|n| matches!(n.tag_name().name(), "AutomationTarget" | "ModulationTarget"))
+        .filter_map(|n| n.attribute("Id"))
+        .collect();
+    let total = target_ids.len();
+    target_ids.sort();
+    target_ids.dedup();
+    assert_eq!(target_ids.len(), total, "two copies share an automation id");
+}
+
+#[test]
+fn each_variation_is_one_group_holding_its_picked_tracks() {
+    let merged = build_mashup(
+        &two_sources_with_a_return_each(),
+        &[
+            variation("Var 1", vec![vec![0], vec![0]]),
+            variation("Var 2", vec![vec![0]]),
+        ],
+    )
+    .unwrap();
+    assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
+
+    let rows = track_rows(&merged);
+    let groups: Vec<&TrackRow> = rows.iter().filter(|r| r.0 == "GroupTrack").collect();
+    assert_eq!(groups.len(), 2);
+    for (group, name) in groups.iter().zip(["Var 1", "Var 2"]) {
+        assert_eq!(group.2, "-1");
+        assert_eq!(group.3, name);
+        assert_eq!(group.4, "AudioOut/Main");
+        assert_eq!(group.5, 2, "one send per return");
+    }
+
+    let mut current_group = "";
+    let mut members: Vec<(String, &str)> = Vec::new();
+    for row in rows.iter().filter(|r| r.0 != "ReturnTrack") {
+        if row.0 == "GroupTrack" {
+            current_group = &row.1;
+            continue;
+        }
+        assert_eq!(
+            row.2, current_group,
+            "{} is not in its variation's group",
+            row.3
+        );
+        assert_eq!(row.4, "AudioOut/GroupTrack");
+        members.push((row.3.clone(), current_group));
+    }
+    let names: Vec<&str> = members.iter().map(|m| m.0.as_str()).collect();
+    assert_eq!(names, ["Drums A", "Lead B", "Drums A"]);
+}
+
+/// Group 5 holds a track and group 7, which holds another track; track 9
+/// stands alone.
+fn source_with_nested_groups() -> String {
+    project_xml_with_sends_pre(
+        &[
+            track_with_sends("GroupTrack", 5, "Outer", &[OFF], 100),
+            in_group(track_with_sends("MidiTrack", 6, "In Outer", &[OFF], 110), 5),
+            in_group(track_with_sends("GroupTrack", 7, "Inner", &[OFF], 120), 5),
+            in_group(track_with_sends("MidiTrack", 8, "In Inner", &[OFF], 130), 7),
+            track_with_sends("MidiTrack", 9, "Alone", &[OFF], 140),
+            track_with_sends("ReturnTrack", 2, "Rev", &[OFF], 150),
+        ]
+        .concat(),
+        1,
+    )
+}
+
+#[test]
+fn a_nested_group_is_copied_whole_and_keeps_its_own_grouping() {
+    let merged = build_mashup(
+        &[MashupSource {
+            xml: source_with_nested_groups(),
+        }],
+        &[
+            variation("Var 1", vec![vec![0, 1, 2, 3]]),
+            variation("Var 2", vec![vec![3, 2, 1, 0, 4]]),
+        ],
+    )
+    .unwrap();
+    assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
+
+    let rows = track_rows(&merged);
+    let id_of = |name: &str, nth: usize| -> &str {
+        &rows.iter().filter(|r| r.3 == name).nth(nth).unwrap().1
+    };
+    let group_of = |name: &str, nth: usize| -> &str {
+        &rows.iter().filter(|r| r.3 == name).nth(nth).unwrap().2
+    };
+    for nth in 0..2 {
+        assert_eq!(group_of("In Outer", nth), id_of("Outer", nth));
+        assert_eq!(group_of("Inner", nth), id_of("Outer", nth));
+        assert_eq!(group_of("In Inner", nth), id_of("Inner", nth));
+        assert_eq!(group_of("Outer", nth), id_of(["Var 1", "Var 2"][nth], 0));
+    }
+    let var2: Vec<&str> = rows
+        .iter()
+        .skip_while(|r| r.3 != "Var 2")
+        .skip(1)
+        .take_while(|r| r.0 != "ReturnTrack")
+        .map(|r| r.3.as_str())
+        .collect();
+    assert_eq!(
+        var2,
+        ["Outer", "In Outer", "Inner", "In Inner", "Alone"],
+        "a unit's tracks keep their original order"
+    );
+}
+
+#[test]
+fn half_a_group_is_rejected() {
+    for picks in [vec![0, 1], vec![1], vec![0, 1, 2]] {
+        let err = build_mashup(
+            &[MashupSource {
+                xml: source_with_nested_groups(),
+            }],
+            &[variation("Var 1", vec![picks.clone()])],
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("groups are picked whole"),
+            "{picks:?}: {err}"
+        );
+    }
+}
+
+#[test]
+fn diagnostics_flags_a_track_grouped_under_a_missing_or_later_group() {
+    let later = project_xml(&format!(
+        "{}{}",
+        in_group(midi_track("Child"), 5),
+        midi_track("Group")
+            .replace("MidiTrack Id=\"1\"", "GroupTrack Id=\"5\"")
+            .replace("</MidiTrack>", "</GroupTrack>"),
+    ));
+    let missing = project_xml(&in_group(midi_track("Child"), 77));
+    for xml in [later, missing] {
+        let problems = diagnostics::check(&xml);
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(problems[0].contains("not an earlier GroupTrack"));
     }
 }
