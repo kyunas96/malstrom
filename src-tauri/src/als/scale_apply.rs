@@ -11,6 +11,7 @@ use super::scale_info_schema::{
     ableton_major_version, detect_schema, has_ambiguous_root_tags, read_root_value,
     read_scale_index, scale_information_block, sniff_document_schema, ScaleInfoSchema, ROOT_TAGS,
 };
+use super::xml_edit::apply_edits;
 
 /// Whether every pitch class in `pitch_classes` fits within `(root_note, scale_index)`'s
 /// interval set. Empty pitch classes never "fit" -- an unpitched clip has
@@ -284,8 +285,7 @@ pub(super) fn apply_scale_to_xml(
         }
     }
 
-    edits.sort_by_key(|edit| edit.range.start);
-    let new_xml = apply_edits(xml, &edits);
+    let new_xml = apply_edits(xml, edits.into_iter().map(|e| (e.range, e.block)).collect());
 
     // The edits are byte-range splices, not a re-serialization -- verify the
     // result is still well-formed before it's ever written to disk, since a
@@ -367,16 +367,4 @@ fn leading_indent(xml: &str, pos: usize) -> String {
         .chars()
         .take_while(|c| *c == ' ' || *c == '\t')
         .collect()
-}
-
-fn apply_edits(xml: &str, edits: &[Edit]) -> String {
-    let mut out = String::with_capacity(xml.len());
-    let mut cursor = 0;
-    for edit in edits {
-        out.push_str(&xml[cursor..edit.range.start]);
-        out.push_str(&edit.block);
-        cursor = edit.range.end;
-    }
-    out.push_str(&xml[cursor..]);
-    out
 }

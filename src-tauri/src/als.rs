@@ -8,6 +8,7 @@ pub mod scale_candidates;
 pub mod scale_constants;
 pub mod scale_info_schema;
 pub mod scale_names;
+mod xml_edit;
 
 pub use categorize::{categorize_by_db_tags, categorize_by_name, TrackCategory, TrackSummary};
 pub use inspector::AlsInspector;

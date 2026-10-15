@@ -1,4 +1,4 @@
-use super::apply_attribute_edits;
+use super::apply_edits;
 use anyhow::{anyhow, Result};
 use roxmltree::Document;
 
@@ -46,7 +46,7 @@ pub(super) fn strip_groove_references(block: &str) -> Result<String> {
         .filter(|a| a.value() != "-1")
         .map(|a| (a.range_value(), "-1".to_string()))
         .collect();
-    Ok(apply_attribute_edits(block, edits))
+    Ok(apply_edits(block, edits))
 }
 
 /// Adds `offset` to every id-bearing value in `block` (an extracted track's
@@ -81,7 +81,7 @@ pub(super) fn shift_ids_in_block(block: &str, offset: u64) -> Result<String> {
             edits.push((attr.range_value(), (original + offset).to_string()));
         }
     }
-    Ok(apply_attribute_edits(block, edits))
+    Ok(apply_edits(block, edits))
 }
 
 /// Raises `<NextPointeeId Value="...">` to stay above every id now present

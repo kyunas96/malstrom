@@ -1,4 +1,4 @@
-use super::{apply_attribute_edits, block_with_indent, tracks_node};
+use super::{apply_edits, block_with_indent, tracks_node};
 use anyhow::{anyhow, Result};
 use roxmltree::{Document, Node};
 
@@ -60,7 +60,7 @@ fn padding_send_holder(template: &str, next_id: &mut u64) -> Result<String> {
             *next_id += 1;
         }
     }
-    Ok(format!("\n{}", apply_attribute_edits(template, edits)))
+    Ok(format!("\n{}", apply_edits(template, edits)))
 }
 
 /// Splices `prepend`/`append` in as `node`'s first/last children, expanding

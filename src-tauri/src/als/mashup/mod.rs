@@ -14,6 +14,8 @@ pub use plan::plan_variations;
 use plan::{unit_tops, whole_units};
 use sends::{append_sends_pre, first_send_holder, pad_track_sends};
 
+use super::xml_edit::apply_edits;
+
 /// An empty Live 12 `GroupTrack` (no devices, no clips, `TrackGroupId -1`,
 /// an empty `<Sends />` for `pad_track_sends` to fill), cut from a real
 /// Live 12.2 set with its Ids renumbered from 1. Most projects have no group
@@ -67,18 +69,6 @@ fn block_with_indent(xml: &str, node: &Node) -> String {
     xml[line_start..node.range().end].to_string()
 }
 
-/// Replaces the text at each `(range, new_value)` edit, back-to-front so
-/// earlier ranges stay valid regardless of how a replacement's length
-/// differs from the original.
-fn apply_attribute_edits(xml: &str, mut edits: Vec<(std::ops::Range<usize>, String)>) -> String {
-    edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
-    let mut out = xml.to_string();
-    for (range, new_value) in edits {
-        out.replace_range(range, &new_value);
-    }
-    out
-}
-
 /// A track's own `DeviceChain/AudioOutputRouting`.
 fn audio_output_routing<'a, 'input>(track: Node<'a, 'input>) -> Option<Node<'a, 'input>> {
     ["DeviceChain", "AudioOutputRouting"]
@@ -118,7 +108,7 @@ fn into_group(block: &str, group_id: u64) -> Result<String> {
             }
         }
     }
-    Ok(apply_attribute_edits(block, edits))
+    Ok(apply_edits(block, edits))
 }
 
 /// A copy of `GROUP_TRACK_TEMPLATE` named `name`, with its ids shifted by
@@ -154,7 +144,7 @@ fn group_block(
         .and_then(|r| child_value(r, "Target"))
         .ok_or_else(|| anyhow!("group template has no AudioOutputRouting/Target"))?;
     edits.push((target.range_value(), main_out.to_string()));
-    let block = apply_attribute_edits(&block, edits);
+    let block = apply_edits(&block, edits);
     pad_track_sends(&block, 0, total_returns, send_template, next_id)
 }
 
