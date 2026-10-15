@@ -18,6 +18,7 @@ pub struct MashupSource {
 /// `non_return_tracks` (the same order `categorize::list_tracks` returns).
 /// They must cover whole units: a top-level track plus every track grouped
 /// under it. A missing entry picks nothing from that source.
+#[derive(Debug, PartialEq)]
 pub struct Variation {
     pub name: String,
     pub picks: Vec<Vec<usize>>,
@@ -381,6 +382,90 @@ fn whole_units(picks: &[usize], tops: &[usize]) -> Result<Vec<usize>> {
         }
     }
     Ok(picks)
+}
+
+/// SplitMix64: small, fast and good enough to pick tracks, so no crate.
+struct SplitMix64(u64);
+
+impl SplitMix64 {
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let z = (self.0 ^ (self.0 >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+}
+
+/// `n` variations (1 to 6) over `sources`. Var 1 picks every unit. Each
+/// later one keeps every unit with a 50% chance, but always at least one
+/// unit from each source that has any, and is redrawn (up to 20 times) if
+/// it repeats an earlier variation; a source with very few units can't
+/// always give `n` different ones. The same seed always gives the same
+/// plan.
+pub fn plan_variations(sources: &[Document], n: usize, seed: u64) -> Result<Vec<Variation>> {
+    if !(1..=6).contains(&n) {
+        return Err(anyhow!("variations must be 1 to 6, got {n}"));
+    }
+    // units[s][u] = the track indices of source s's unit u, in order.
+    let units = sources
+        .iter()
+        .map(|doc| {
+            let tops = unit_tops(&non_return_tracks(doc)?)?;
+            let mut units: Vec<Vec<usize>> = Vec::new();
+            for (idx, &top) in tops.iter().enumerate() {
+                match units.iter_mut().find(|u| tops[u[0]] == top) {
+                    Some(unit) => unit.push(idx),
+                    None => units.push(vec![idx]),
+                }
+            }
+            Ok(units)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut rng = SplitMix64(seed);
+    let mut draw = || -> Vec<Vec<usize>> {
+        units
+            .iter()
+            .map(|source_units| {
+                let mut kept: Vec<usize> = (0..source_units.len())
+                    .filter(|_| rng.next() & 1 == 1)
+                    .collect();
+                if kept.is_empty() && !source_units.is_empty() {
+                    kept.push((rng.next() % source_units.len() as u64) as usize);
+                }
+                kept
+            })
+            .collect()
+    };
+    let mut plans: Vec<Vec<Vec<usize>>> =
+        vec![units.iter().map(|u| (0..u.len()).collect()).collect()];
+    while plans.len() < n {
+        let mut plan = draw();
+        for _ in 0..20 {
+            if !plans.contains(&plan) {
+                break;
+            }
+            plan = draw();
+        }
+        plans.push(plan);
+    }
+
+    Ok(plans
+        .into_iter()
+        .enumerate()
+        .map(|(i, plan)| Variation {
+            name: format!("Var {}", i + 1),
+            picks: plan
+                .iter()
+                .zip(&units)
+                .map(|(kept, source_units)| {
+                    kept.iter()
+                        .flat_map(|&u| source_units[u].iter().copied())
+                        .collect()
+                })
+                .collect(),
+        })
+        .collect())
 }
 
 /// A track's own `DeviceChain/AudioOutputRouting`.

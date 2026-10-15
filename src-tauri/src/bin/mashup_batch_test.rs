@@ -3,11 +3,13 @@
 //! reports both the fast structural check and real-Live verification
 //! results to a resumable JSONL report.
 //!
-//! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl]
+//! Usage: cargo run --bin mashup_batch_test -- <root-dir> [report-path.jsonl] [--variations n]
+//!
+//! Variations are planned with a fixed seed (`SEED`), so re-runs are
+//! reproducible. Every pair line records n and the seed, and resuming only
+//! skips pairs already done at the same n.
 
-use malstrom_lib::als::mashup::{
-    build_mashup, diagnostics, non_return_tracks, MashupSource, Variation,
-};
+use malstrom_lib::als::mashup::{build_mashup, diagnostics, plan_variations, MashupSource};
 use malstrom_lib::als::output_path::{scan_als_files, write_als, LIVE_12_UPGRADE_DIR};
 use malstrom_lib::als::AlsInspector;
 use roxmltree::Document;
@@ -19,10 +21,23 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
+const SEED: u64 = 1;
+
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let mut variations = 1;
+    if let Some(i) = args.iter().position(|a| a == "--variations") {
+        match args.get(i + 1).and_then(|n| n.parse().ok()) {
+            Some(n) if (1..=6).contains(&n) => variations = n,
+            _ => {
+                eprintln!("--variations takes a number from 1 to 6");
+                return ExitCode::FAILURE;
+            }
+        }
+        args.drain(i..i + 2);
+    }
     let Some(root) = args.first() else {
-        eprintln!("usage: mashup_batch_test <root-dir> [report-path.jsonl]");
+        eprintln!("usage: mashup_batch_test <root-dir> [report-path.jsonl] [--variations n]");
         return ExitCode::FAILURE;
     };
     let root = PathBuf::from(root);
@@ -31,7 +46,7 @@ fn main() -> ExitCode {
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("mashup-batch-report.jsonl"));
 
-    match run(&root, &report_path) {
+    match run(&root, &report_path, variations) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -40,7 +55,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(root: &Path, report_path: &Path) -> anyhow::Result<()> {
+fn run(root: &Path, report_path: &Path, variations: usize) -> anyhow::Result<()> {
     // In case a previous run was killed mid-batch with Live left open.
     force_kill_live();
 
@@ -80,14 +95,14 @@ fn run(root: &Path, report_path: &Path) -> anyhow::Result<()> {
         for j in (i + 1)..loaded.len() {
             let (a_key, a_xml) = &loaded[i];
             let (b_key, b_xml) = &loaded[j];
-            let pair_key = format!("{a_key}|{b_key}");
+            let pair_key = format!("{a_key}|{b_key}|{variations}");
             done += 1;
             if done_pairs.contains(&pair_key) {
                 continue;
             }
             print!("[{done}/{total_pairs}] {a_key} + {b_key} ... ");
             let _ = std::io::stdout().flush();
-            process_pair(&mut report, a_key, a_xml, b_key, b_xml)?;
+            process_pair(&mut report, a_key, a_xml, b_key, b_xml, variations)?;
         }
     }
 
@@ -104,21 +119,22 @@ fn process_pair(
     a_xml: &str,
     b_key: &str,
     b_xml: &str,
+    variations: usize,
 ) -> anyhow::Result<()> {
-    let (merged, problems) = match phase_a(a_xml, b_xml) {
+    let (merged, problems) = match phase_a(a_xml, b_xml, variations) {
         Err(panic_payload) => {
             let msg = panic_message(&panic_payload);
             println!("PANIC: {msg}");
             return append_line(
                 report,
-                &json!({"a": a_key, "b": b_key, "error": format!("panicked: {msg}")}),
+                &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "error": format!("panicked: {msg}")}),
             );
         }
         Ok(Err(e)) => {
             println!("ERROR: {e}");
             return append_line(
                 report,
-                &json!({"a": a_key, "b": b_key, "error": e.to_string()}),
+                &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "error": e.to_string()}),
             );
         }
         Ok(Ok(pair)) => pair,
@@ -128,7 +144,7 @@ fn process_pair(
         println!("structurally unsound ({} problem(s))", problems.len());
         return append_line(
             report,
-            &json!({"a": a_key, "b": b_key, "structural_problems": problems}),
+            &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "structural_problems": problems}),
         );
     }
 
@@ -136,13 +152,8 @@ fn process_pair(
     println!("{live_result}");
     append_line(
         report,
-        &json!({"a": a_key, "b": b_key, "structural_problems": Vec::<String>::new(), "live_result": live_result}),
+        &json!({"a": a_key, "b": b_key, "variations": variations, "seed": SEED, "structural_problems": Vec::<String>::new(), "live_result": live_result}),
     )
-}
-
-fn all_track_indices(xml: &str) -> anyhow::Result<Vec<usize>> {
-    let doc = Document::parse(xml)?;
-    Ok((0..non_return_tracks(&doc)?.len()).collect())
 }
 
 /// The structural half of one pair's check, isolated in `catch_unwind`: the
@@ -153,8 +164,13 @@ fn all_track_indices(xml: &str) -> anyhow::Result<Vec<usize>> {
 /// checkpoint, an uncaught panic here would leave the pair unrecorded and
 /// resume would walk straight back into it -- an infinite restart loop
 /// instead of a recoverable skip.
-fn phase_a(a_xml: &str, b_xml: &str) -> std::thread::Result<anyhow::Result<(String, Vec<String>)>> {
+fn phase_a(
+    a_xml: &str,
+    b_xml: &str,
+    variations: usize,
+) -> std::thread::Result<anyhow::Result<(String, Vec<String>)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let docs = [Document::parse(a_xml)?, Document::parse(b_xml)?];
         let merged = build_mashup(
             &[
                 MashupSource {
@@ -164,10 +180,7 @@ fn phase_a(a_xml: &str, b_xml: &str) -> std::thread::Result<anyhow::Result<(Stri
                     xml: b_xml.to_string(),
                 },
             ],
-            &[Variation {
-                name: "Var 1".to_string(),
-                picks: vec![all_track_indices(a_xml)?, all_track_indices(b_xml)?],
-            }],
+            &plan_variations(&docs, variations, SEED)?,
         )?;
         let problems = diagnostics::check(&merged);
         Ok((merged, problems))
@@ -385,7 +398,8 @@ fn load_done_pairs(report_path: &Path) -> anyhow::Result<HashSet<String>> {
                     value.get("a").and_then(Value::as_str),
                     value.get("b").and_then(Value::as_str),
                 ) {
-                    done.insert(format!("{a}|{b}"));
+                    let variations = value.get("variations").and_then(Value::as_u64).unwrap_or(1);
+                    done.insert(format!("{a}|{b}|{variations}"));
                 }
             }
             Err(e) => eprintln!("warning: dropping unparseable report line {}: {e}", i + 1),
