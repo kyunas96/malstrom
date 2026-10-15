@@ -7,11 +7,18 @@ mod groups;
 mod ids;
 mod plan;
 mod sends;
+mod transpose;
 
 /// One variation picking `indices` from each source.
 fn mash(sources: Vec<(String, Vec<usize>)>) -> anyhow::Result<String> {
     let (xmls, picks): (Vec<_>, Vec<_>) = sources.into_iter().unzip();
-    let sources: Vec<MashupSource> = xmls.into_iter().map(|xml| MashupSource { xml }).collect();
+    let sources: Vec<MashupSource> = xmls
+        .into_iter()
+        .map(|xml| MashupSource {
+            xml,
+            semitones: vec![],
+        })
+        .collect();
     build_mashup(
         &sources,
         &[Variation {

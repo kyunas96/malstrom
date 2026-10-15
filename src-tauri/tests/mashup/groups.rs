@@ -46,7 +46,16 @@ fn two_sources_with_a_return_each() -> Vec<MashupSource> {
         ),
         1,
     );
-    vec![MashupSource { xml: a_xml }, MashupSource { xml: b_xml }]
+    vec![
+        MashupSource {
+            xml: a_xml,
+            semitones: vec![],
+        },
+        MashupSource {
+            xml: b_xml,
+            semitones: vec![],
+        },
+    ]
 }
 
 fn variation(name: &str, picks: Vec<Vec<usize>>) -> Variation {
@@ -201,6 +210,7 @@ fn a_nested_group_is_copied_whole_and_keeps_its_own_grouping() {
     let merged = build_mashup(
         &[MashupSource {
             xml: source_with_nested_groups(),
+            semitones: vec![],
         }],
         &[
             variation("Var 1", vec![vec![0, 1, 2, 3]]),
@@ -243,6 +253,7 @@ fn half_a_group_is_rejected() {
         let err = build_mashup(
             &[MashupSource {
                 xml: source_with_nested_groups(),
+                semitones: vec![],
             }],
             &[variation("Var 1", vec![picks.clone()])],
         )
