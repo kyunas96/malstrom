@@ -4,6 +4,7 @@ use roxmltree::{Document, Node};
 pub mod diagnostics;
 mod ids;
 mod layering;
+mod medley;
 pub mod pipeline;
 mod plan;
 mod sends;
@@ -154,7 +155,7 @@ pub fn build_mashup_with(
     }
     if mix.blocks.iter().any(|b| b.rows.is_empty()) {
         return Err(anyhow!(
-            "the pipeline needs a layout stage (layering) first"
+            "the pipeline needs a layout stage (layering or medley) first"
         ));
     }
     let rows: Vec<Row> = mix

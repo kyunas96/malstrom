@@ -3,7 +3,7 @@
 //! interface, so a pipeline is composed by naming stages, e.g.
 //! `layering,twist`.
 //!
-//! A layout stage (`layering`) goes first. It decides which of
+//! A layout stage (`layering` or `medley`) goes first. It decides which of
 //! A's and B's sections each scene plays, and fills every picked track's
 //! slots from them. The stages after it rework those slots.
 
@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use roxmltree::Document;
 
 use super::layering::Layering;
+use super::medley::Medley;
 use super::session::clip_near;
 use super::twist::TwistStage;
 use super::Variation;
@@ -32,10 +33,11 @@ pub fn parse_pipeline(names: &str) -> Result<Vec<Box<dyn Stage>>> {
         .map(|name| -> Result<Box<dyn Stage>> {
             Ok(match name.trim() {
                 "layering" => Box::new(Layering),
+                "medley" => Box::new(Medley),
                 "twist" => Box::new(TwistStage),
                 other => {
                     return Err(anyhow!(
-                        "no stage called {other:?}; stages are layering, twist"
+                        "no stage called {other:?}; stages are layering, medley, twist"
                     ))
                 }
             })
