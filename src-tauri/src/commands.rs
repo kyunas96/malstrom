@@ -225,7 +225,10 @@ pub async fn mashup_create(
                     .map_err(|e| e.to_string())?
                     .raw_xml()
                     .to_string();
-                Ok(mashup::MashupSource { xml })
+                Ok(mashup::MashupSource {
+                    xml,
+                    semitones: vec![],
+                })
             })
             .collect::<Result<Vec<_>, String>>()?;
         let variation = mashup::Variation {

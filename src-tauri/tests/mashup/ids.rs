@@ -140,3 +140,34 @@ fn next_pointee_id_does_not_need_to_exceed_its_own_value() {
 
     assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
 }
+
+#[test]
+fn a_huge_lom_id_does_not_size_the_id_ranges() {
+    // Live writes LomIds as large as 0x7FFF0000; counting one as an id would
+    // push six copies' ranges past Live's 32-bit limit.
+    let b = project_xml(&midi_track("Big").replace(
+        "<TrackGroupId",
+        r#"<LomId Value="2147418112" /><TrackGroupId"#,
+    ));
+    let sources: Vec<MashupSource> = [project_xml(&midi_track("A")), b]
+        .into_iter()
+        .map(|xml| MashupSource {
+            xml,
+            semitones: vec![],
+        })
+        .collect();
+    let variations: Vec<Variation> = (1..=6)
+        .map(|i| Variation {
+            name: format!("Var {i}"),
+            picks: vec![vec![0], vec![0]],
+        })
+        .collect();
+
+    let merged = build_mashup(&sources, &variations).unwrap();
+
+    assert_eq!(diagnostics::check(&merged), Vec::<String>::new());
+    assert!(
+        merged.contains(r#"<LomId Value="2147418112" />"#),
+        "LomIds aren't shifted"
+    );
+}

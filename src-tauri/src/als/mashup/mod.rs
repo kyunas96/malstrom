@@ -5,6 +5,7 @@ pub mod diagnostics;
 mod ids;
 mod plan;
 mod sends;
+mod transpose;
 
 use ids::{
     ensure_next_pointee_id_is_high_enough, max_referenced_id, shift_ids_in_block,
@@ -13,6 +14,8 @@ use ids::{
 pub use plan::plan_variations;
 use plan::{unit_tops, whole_units};
 use sends::{append_sends_pre, first_send_holder, pad_track_sends};
+use transpose::transpose_track;
+pub use transpose::{key_shift, track_semitones};
 
 use super::xml_edit::apply_edits;
 
@@ -26,6 +29,9 @@ pub const GROUP_TRACK_TEMPLATE: &str = include_str!("../templates/group_track.xm
 /// One source project's raw (decompressed) XML.
 pub struct MashupSource {
     pub xml: String,
+    /// Semitones to move each track by, indexed like `non_return_tracks`
+    /// (see `track_semitones`). Empty, or short, moves nothing.
+    pub semitones: Vec<i32>,
 }
 
 /// One group in the mashup. `picks[s]` holds indices into source `s`'s
@@ -220,18 +226,20 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
         })
         .collect();
 
-    let prepare = |s: usize, node: Node, offset: u64, next_id: &mut u64| -> Result<String> {
-        let block = block_with_indent(&sources[s].xml, &node);
-        let block = if s > 0 {
-            strip_groove_references(&block)?
-        } else {
-            block
+    let prepare =
+        |s: usize, node: Node, semitones: i32, offset: u64, next_id: &mut u64| -> Result<String> {
+            let block = transpose_track(&block_with_indent(&sources[s].xml, &node), semitones)?;
+            let block = if s > 0 {
+                strip_groove_references(&block)?
+            } else {
+                block
+            };
+            let block = shift_ids_in_block(&block, offset)?;
+            let after = total_returns - befores[s] - return_counts[s];
+            let block =
+                pad_track_sends(&block, befores[s], after, send_template.as_deref(), next_id)?;
+            Ok(format!("\n{block}"))
         };
-        let block = shift_ids_in_block(&block, offset)?;
-        let after = total_returns - befores[s] - return_counts[s];
-        let block = pad_track_sends(&block, befores[s], after, send_template.as_deref(), next_id)?;
-        Ok(format!("\n{block}"))
-    };
 
     let mut body = String::new();
     let mut copies = vec![0usize; sources.len()];
@@ -272,7 +280,8 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
             };
             copies[s] += 1;
             for &idx in picks {
-                let block = prepare(s, source_tracks[s][idx], offset, &mut next_id)?;
+                let semitones = sources[s].semitones.get(idx).copied().unwrap_or(0);
+                let block = prepare(s, source_tracks[s][idx], semitones, offset, &mut next_id)?;
                 body.push_str(&if tops[s][idx] == idx {
                     into_group(&block, group_id)?
                 } else {
@@ -285,7 +294,7 @@ pub fn build_mashup(sources: &[MashupSource], variations: &[Variation]) -> Resul
     let mut donor_sends_pre = String::new();
     for (s, doc) in docs.iter().enumerate() {
         for node in return_tracks(doc)? {
-            body.push_str(&prepare(s, node, home[s], &mut next_id)?);
+            body.push_str(&prepare(s, node, 0, home[s], &mut next_id)?);
         }
         if s == 0 {
             continue;

@@ -102,6 +102,13 @@ pub fn check(xml: &str) -> Vec<String> {
         .and_then(|v| v.parse::<u64>().ok())
     {
         let needed = max_referenced_id(&doc) + 1;
+        // Live reads ids as 32-bit ints ("Unexpected value for int node").
+        if current > i32::MAX as u64 {
+            problems.push(format!(
+                "NextPointeeId ({current}) is past Live's limit of {}",
+                i32::MAX
+            ));
+        }
         if current < needed {
             problems.push(format!(
                 "NextPointeeId ({current}) is too low; must be at least {needed}"

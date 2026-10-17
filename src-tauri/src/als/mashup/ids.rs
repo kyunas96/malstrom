@@ -2,6 +2,15 @@ use super::apply_edits;
 use anyhow::{anyhow, Result};
 use roxmltree::Document;
 
+/// Whether a `*Id`-named element's `Value` points at a pointee id. Not
+/// `NextPointeeId` (a counter, see `max_referenced_id`), `GrooveId` (points
+/// into the groove pool, see `strip_groove_references`) or `LomId` (Live's
+/// runtime object handle: repeats freely, and can be as large as
+/// 2147418112, which would size an id range past what Live can read).
+fn holds_id_reference(tag: &str) -> bool {
+    tag.ends_with("Id") && !matches!(tag, "NextPointeeId" | "GrooveId" | "LomId")
+}
+
 /// The highest `Id` any element in the document claims, or that any
 /// `*Id`-named element (e.g. `PointeeId`) points at via its `Value`.
 /// `NextPointeeId` itself is excluded even though its tag matches: it's a
@@ -12,7 +21,7 @@ pub(super) fn max_referenced_id(doc: &Document) -> u64 {
     doc.descendants()
         .flat_map(|n| {
             let tag = n.tag_name().name();
-            let is_reference_holder = tag.ends_with("Id") && tag != "NextPointeeId";
+            let is_reference_holder = holds_id_reference(tag);
             n.attributes()
                 .filter(move |a| a.name() == "Id" || (is_reference_holder && a.name() == "Value"))
                 .filter_map(|a| a.value().parse::<u64>().ok())
@@ -68,10 +77,7 @@ pub(super) fn shift_ids_in_block(block: &str, offset: u64) -> Result<String> {
         Document::parse(block).map_err(|e| anyhow!("XML parse error while remapping ids: {e}"))?;
     let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
     for n in doc.descendants() {
-        // A GrooveId points into the document's GroovePool, not into the
-        // track, so it must not move with the track's own ids.
-        let tag = n.tag_name().name();
-        let tag_ends_in_id = tag.ends_with("Id") && tag != "GrooveId";
+        let tag_ends_in_id = holds_id_reference(n.tag_name().name());
         for attr in n.attributes() {
             let relevant = attr.name() == "Id" || (tag_ends_in_id && attr.name() == "Value");
             let Some(original) = relevant.then(|| attr.value().parse::<u64>().ok()).flatten()

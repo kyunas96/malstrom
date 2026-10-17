@@ -7,9 +7,12 @@
 //!
 //! Variations are planned with a fixed seed (`SEED`), so re-runs are
 //! reproducible. Every pair line records n and the seed, and resuming only
-//! skips pairs already done at the same n.
+//! skips pairs already done at the same n. B is moved into A's key, as the
+//! app does, with drums found by track name only.
 
-use malstrom_lib::als::mashup::{build_mashup, diagnostics, plan_variations, MashupSource};
+use malstrom_lib::als::mashup::{
+    build_mashup, diagnostics, plan_variations, track_semitones, MashupSource,
+};
 use malstrom_lib::als::output_path::{scan_als_files, write_als, LIVE_12_UPGRADE_DIR};
 use malstrom_lib::als::AlsInspector;
 use roxmltree::Document;
@@ -171,9 +174,11 @@ fn phase_a(
             &[
                 MashupSource {
                     xml: a_xml.to_string(),
+                    semitones: vec![],
                 },
                 MashupSource {
                     xml: b_xml.to_string(),
+                    semitones: track_semitones(&docs[0], &docs[1], &[])?,
                 },
             ],
             &plan_variations(&docs, variations, SEED)?,

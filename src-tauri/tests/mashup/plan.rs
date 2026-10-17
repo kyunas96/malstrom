@@ -38,9 +38,11 @@ fn later_variations_take_whole_units_from_both_sides() {
     let sources = [
         MashupSource {
             xml: source_with_nested_groups(),
+            semitones: vec![],
         },
         MashupSource {
             xml: source_with_eight_tracks(),
+            semitones: vec![],
         },
     ];
     for seed in 0..50 {
