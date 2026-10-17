@@ -54,11 +54,11 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 
 ### Experimental
 
-Working on the backend, not yet in the UI. Checked by opening the output in
-Ableton Live, but only on a small sample of files from the current Live
+Paused, and only in the backend, not the UI. Checked by opening the output
+in Ableton Live, but only on a small sample of files from the current Live
 version. Projects saved in older Live versions haven't been tested.
 
-- **Mashup** (`src-tauri/src/als/mashup.rs`): splice selected tracks from
+- **Mashup** (`src-tauri/src/als/mashup/`): splice selected tracks from
   two `.als` projects into one new, valid Live Set. Both projects keep
   their return tracks, and every track's sends are lined up so each one
   still feeds its own project's returns. Exposed as the `mashup_create`
@@ -149,10 +149,11 @@ For how each feature was designed and what I learned building it, see the
 - [ ] Packaged builds / releases
 - [x] Categorize a project's tracks (DRUMS, BASS, PERCUSSION, VOCALS, ...)
       from their names — not yet surfaced in the UI
-- [ ] **Mashup**: filter projects down to a shared scale, select several of
-      them, and get a picker of elements to pull from each into one new
-      project — backend works for 2 projects (see Experimental above), UI
-      in progress
+- [ ] **Mashup** (paused): combine two scale-compatible projects into one
+      new set that opens in Live. The backend works for two projects (see
+      Experimental above). I paused it because the plumbing worked but the
+      musical results didn't: deciding how two sketches should be combined
+      is a matter of taste, and code applying fixed rules can't supply it
 
 ## License
 
