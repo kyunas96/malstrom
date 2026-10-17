@@ -30,9 +30,12 @@ Point it at a folder of `.als` files and it will:
 - **Infer** compatible scales directly from MIDI clip note content when a
   project has no explicit scale set.
 - **Filter** the whole list by scale, so you can answer "which of my
-  projects are in D Dorian?" in one click.
+  projects are in D Dorian?" in one click, or by project name.
 - **Apply** a chosen scale back to a project, tagging every MIDI clip that's
-  compatible with it.
+  compatible with it. By default the result is saved as a new file next to
+  the original; overwriting in place backs the original up first.
+- **Tag tracks** by category (drums, bass, vocals, ...), from track names
+  or from the tags in Live's own database if you point Settings at it.
 
 ## Status
 
@@ -43,8 +46,9 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 - Directory scanning + virtualized/filterable project table
 - Explicit `ScaleInformation` parsing
 - Scale inference from MIDI clip content
-- Filter-by-scale UI
+- Filter-by-scale and filter-by-name UI
 - Applying a scale to a project, writing it onto every compatible MIDI clip
+- Track categories per project (Show Track Tags)
 
 **Not yet**
 
@@ -54,19 +58,20 @@ This is early — v0.1, unreleased. What's solid vs. what's still missing:
 
 ### Experimental
 
-Working on the backend, not yet in the UI. Checked by opening the output in
-Ableton Live, but only on a small sample of files from the current Live
+Paused, and only in the backend, not the UI. Checked by opening the output
+in Ableton Live, but only on a small sample of files from the current Live
 version. Projects saved in older Live versions haven't been tested.
 
-- **Mashup** (`src-tauri/src/als/mashup.rs`): splice selected tracks from
+- **Mashup** (`src-tauri/src/als/mashup/`): splice selected tracks from
   two `.als` projects into one new, valid Live Set. Both projects keep
   their return tracks, and every track's sends are lined up so each one
   still feeds its own project's returns. Exposed as the `mashup_create`
   Tauri command.
 - **Dev CLIs** (`src-tauri/src/bin/`):
-  - `mashup <A.als> <B.als> -o <out.als>` — mash up every track of one
-    pair into a new file, checked for known structural problems before
-    writing. Doesn't touch Live.
+  - `mashup <A.als> <B.als> -o <out.als>` — mash up one pair into a new
+    file, with B moved into A's key and up to 6 seeded variations
+    (`--variations`, `--seed`), checked for known structural problems
+    before writing. Doesn't touch Live.
 
   These two drive the real Live app via macOS accessibility (`osascript`)
   to prove its output loads:
@@ -83,8 +88,9 @@ version. Projects saved in older Live versions haven't been tested.
 ## Technical highlights
 
 - `.als` files are gzipped XML; the Rust backend decompresses (`flate2`) and
-  parses (`roxmltree`) them, and writes changes back with a backup of the
-  original first.
+  parses (`roxmltree`) them. Changes are saved as a new file, or written in
+  place only after backing the original up into the project's `Backup/`
+  folder.
 - Scale inference reduces every MIDI clip to its pitch-class set and scores
   it against all scale/root combinations.
 - Scanning runs off the UI thread in parallel (`rayon`) so the app never
@@ -124,7 +130,7 @@ pnpm tauri build
 ### Test it
 
 ```sh
-cargo test       # from src-tauri/ — Rust unit tests
+cargo test       # from src-tauri/ — Rust unit and integration tests
 pnpm test        # vitest — frontend unit tests
 pnpm test:e2e    # playwright — end-to-end UI tests
 ```
@@ -148,11 +154,12 @@ For how each feature was designed and what I learned building it, see the
       notes)
 - [ ] Packaged builds / releases
 - [x] Categorize a project's tracks (DRUMS, BASS, PERCUSSION, VOCALS, ...)
-      from their names — not yet surfaced in the UI
-- [ ] **Mashup**: filter projects down to a shared scale, select several of
-      them, and get a picker of elements to pull from each into one new
-      project — backend works for 2 projects (see Experimental above), UI
-      in progress
+      from their names or Live's database tags, shown per project
+- [ ] **Mashup** (paused): combine two scale-compatible projects into one
+      new set that opens in Live. The backend works for two projects (see
+      Experimental above). I paused it because the plumbing worked but the
+      musical results didn't: deciding how two sketches should be combined
+      is a matter of taste, and code applying fixed rules can't supply it
 
 ## License
 
